@@ -2,6 +2,7 @@
 /build/
 /lib/
 /extra/
+/data/
 .vscode/
 *.pc
 .vs/
