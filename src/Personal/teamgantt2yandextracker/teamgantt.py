@@ -11,8 +11,17 @@ class TaskType(Enum):
     NONE = 0
     PROJECT = 1
     GROUP = 2
-    SUBGROUP = 3
     TASK = 4
+
+class ColumnName(Enum):
+    NONE = 0
+    TASK_NAME = 1
+    TASK_INDEX = 2
+    TASK_TYPE = 3
+    START_DATE = 4
+    END_DATE = 5
+    ASSIGNEE = 6
+    NOTES = 7
 
 
 class TeamGanttNode:
@@ -133,13 +142,13 @@ class TeamganttLoader:
         return False
     def _map_column_names(self):
         map_arr = {
-            "name": ['^name[a-z]*[1-9]*'],
-            "type": ['^type[a-z]*[1-9]*'],
-            "index": ['^index[a-z]*[1-9]*', "WBS #[a-z]*[1-9]*"],
-            "start_date":["^start date[a-z]*[1-9]*"],
-            "end_date":["^end date[a-z]*[1-9]*"],
-            "notes": ["^notes[a-z]*[1-9]*"],
-            "assignee": ["^resources[a-z]*[1-9]*"],
+            ColumnName.TASK_NAME: ['^name[a-z]*[1-9]*'],
+            ColumnName.TASK_TYPE: ['^type[a-z]*[1-9]*'],
+            ColumnName.TASK_INDEX: ['^index[a-z]*[1-9]*', "WBS #[a-z]*[1-9]*"],
+            ColumnName.START_DATE:["^start date[a-z]*[1-9]*"],
+            ColumnName.END_DATE:["^end date[a-z]*[1-9]*"],
+            ColumnName.NOTES: ["^notes[a-z]*[1-9]*"],
+            ColumnName.ASSIGNEE: ["^resources[a-z]*[1-9]*"],
         }
         _teamgantt_db = self._teamgantt_db.copy()
         columns = list(_teamgantt_db.columns)
@@ -152,12 +161,30 @@ class TeamganttLoader:
                 _teamgantt_db.drop(column, inplace=True, axis = 1)
         
         self._teamgantt_db = _teamgantt_db
+    def _convert_task_type(self, type_column):
+        task_type_map_dict = {
+            TaskType.PROJECT: ['^project[a-z]*[1-9]*'],
+            TaskType.GROUP: ['^group[a-z]*[1-9]*', '^subgroup[a-z]*[1-9]*'],
+            TaskType.TASK: ['^task[a-z]*[1-9]*']
+        }
+        for i in type_column.index:
+            cur_type = type_column.iloc[i]
+            for key,value in task_type_map_dict.items():
+                if(self._entry_is_mapped(cur_type, value)):
+                    type_column.iloc[i] = key
+                    break   
+        #type_column.astype(TaskType)
+        return type_column
+        #type_column.astype(TaskType)    
     def _revise_types(self):
-        _teamgantt_db = self._teamgantt_db.copy()
+        _teamgantt_db = self._teamgantt_db
         for column in _teamgantt_db.columns:
             if is_object_dtype(_teamgantt_db[column]):
-                if column in ["start_date", "end_date"]:
+                if column in [ColumnName.START_DATE, ColumnName.END_DATE]:
                     _teamgantt_db[column] = pd.to_datetime(_teamgantt_db[column])
+                elif column in [ColumnName.TASK_TYPE]:
+                    return_column = self._convert_task_type(type_column = _teamgantt_db[column].copy(deep = True))
+                    _teamgantt_db.loc[:, column] = return_column
                 else:
                      _teamgantt_db[column] = _teamgantt_db[column].astype(str)
     def process_database(self):
@@ -176,6 +203,7 @@ if __name__ == '__main__':
     print(team_gantt_db.describe())
     print(team_gantt_db.info())
     print(team_gantt_db.axes[1])
+    print(team_gantt_db[['Name / Title', 'Predecessors']])
 
     tmgloader = TeamganttLoader(team_gantt_db)
     tmgloader.process_database()
