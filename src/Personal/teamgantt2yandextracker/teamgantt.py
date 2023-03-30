@@ -127,9 +127,7 @@ class TeamganttTree:
 
         new_parent_node.add_child(node)
     
-# Pandas Dataframe to Tree
-class TeamGanttConverter:
-    pass
+
 
 class TeamganttLoader:
     _teamgantt_db = None
@@ -192,7 +190,62 @@ class TeamganttLoader:
         self._revise_types()
     def get_database(self):
         return self._teamgantt_db
+    def get_project_entry(self):
+        project_entry = self._teamgantt_db[self._teamgantt_db[ColumnName.TASK_TYPE] == TaskType.PROJECT].iloc[0, :]
+        for i in self._teamgantt_db.index.values:
+            if list(project_entry.values) == list(self._teamgantt_db.iloc[i, :].values):
+                break
+        project_entry_index = i
+        return [project_entry, project_entry_index]
 
+# Pandas Dataframe to Tree
+class TeamGanttConverter:
+    _teamgantt_loader = None
+    _teamgantt_tree = None
+    def __init__(self, team_gantt_db):
+        self._teamgantt_loader = TeamganttLoader(team_gantt_db)
+    def _init_tree(self):
+        project_entry, project_entry_index = self._teamgantt_loader.get_project_entry()
+        if project_entry.empty:
+            raise Exception('There is no project info in user provided dataframe')
+        self._teamgantt_tree = TeamganttTree(project_entry[ColumnName.TASK_NAME], 
+                                             project_entry[ColumnName.START_DATE], 
+                                             project_entry[ColumnName.END_DATE],
+                                             project_entry[ColumnName.NOTES],
+                                             project_entry[ColumnName.ASSIGNEE])
+    def _is_child_parent_relation(self, child_entry, parent_entry):
+        child_index = child_entry[ColumnName.TASK_INDEX]
+        parent_index = parent_entry[ColumnName.TASK_INDEX]
+        return child_index.find(parent_index) == 0 and (len(child_index.split('.')) - len(parent_index.split('.')) == 1)
+    def _build_tree(self, parent_index):
+        revised_teamgantt_database = self._teamgantt_loader.get_database()
+        parent_entry = revised_teamgantt_database.iloc[parent_index, :]
+        if parent_entry.empty:
+                raise Exception('There is no parent entry with index {parent_index}'.format(parent_index))
+        for i in range(parent_index+1, len(revised_teamgantt_database)):
+            cur_entry = revised_teamgantt_database.iloc[i, :]
+            if cur_entry[ColumnName.TASK_TYPE] == TaskType.PROJECT:
+                continue
+            if self._is_child_parent_relation(cur_entry, parent_entry) != True:
+                continue
+            cur_entry_node = TeamGanttNode(cur_entry[ColumnName.TASK_NAME],
+                                           cur_entry[ColumnName.TASK_TYPE], 
+                                           cur_entry[ColumnName.START_DATE], 
+                                           cur_entry[ColumnName.END_DATE],
+                                           cur_entry[ColumnName.NOTES],
+                                           cur_entry[ColumnName.ASSIGNEE],
+                                           parent_entry[ColumnName.TASK_NAME])
+            self._teamgantt_tree.add_node(cur_entry_node)
+            if cur_entry[ColumnName.TASK_TYPE] == TaskType.GROUP:
+                self._build_tree(i)
+    def process(self):
+        self._teamgantt_loader.process_database()
+        self._init_tree()
+        project_entry, project_entry_index = self._teamgantt_loader.get_project_entry()
+        self._build_tree(project_entry_index)
+    def get_tree(self):
+        return self._teamgantt_tree
+        
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
@@ -205,10 +258,11 @@ if __name__ == '__main__':
     print(team_gantt_db.axes[1])
     print(team_gantt_db[['Name / Title', 'Predecessors']])
 
-    tmgloader = TeamganttLoader(team_gantt_db)
-    tmgloader.process_database()
-    team_gantt_db = tmgloader.get_database()
-    print(team_gantt_db.describe())
-    print(team_gantt_db.info())
-    print(team_gantt_db.axes[1])
-    print(team_gantt_db)
+    tmgconverter = TeamGanttConverter(team_gantt_db)
+    tmgconverter.process()
+    team_gantt_tree = tmgconverter.get_tree()
+    pass
+    #print(team_gantt_db.describe())
+    #print(team_gantt_db.info())
+    #print(team_gantt_db.axes[1])
+    #print(team_gantt_db)
