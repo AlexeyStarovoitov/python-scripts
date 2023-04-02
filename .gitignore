@@ -3,7 +3,9 @@
 /lib/
 /extra/
 /data/
+/out/
 .vscode/
+
 *.pc
 .vs/
 
