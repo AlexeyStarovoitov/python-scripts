@@ -6,6 +6,8 @@ from enum import Enum
 import datetime
 import copy
 import argparse
+import pickle
+from pathlib import Path
 
 class TaskType(Enum):
     NONE = 0
@@ -86,6 +88,8 @@ class TeamGanttNode:
                 if res_child:
                     return res_child
         return None
+    def get_children(self):
+        return self._children
     
 
 
@@ -96,11 +100,14 @@ class TeamganttTree:
     def _find_node(self, node_name):
         return self._root.find_child(node_name)
     def add_node(self, node):
+        print(f"node: {node.get_name()}")
+        print(f"parent_node: {node.get_parent_name()}")
         if node.get_parent_name() == None:
             self._root.add_child(node)
         else:
             parent_node = self._root.find_child(node.get_parent_name())
             if(parent_node != None):
+                print(f"found parent node: {parent_node.get_name()}")
                 parent_node.add_child(node)
     def remove_node(self, node_name):
         node = self._root.find_child(node_name)
@@ -126,6 +133,24 @@ class TeamganttTree:
                 old_parent_node.remove_child(node)
 
         new_parent_node.add_child(node)
+    def _print_node(self, node, file, indent_symbol_num):
+        indent_string = indent_symbol_num*'\t'
+        link_symbol = f'{indent_string}|\n{indent_string}---'
+        file.write(f'{link_symbol}{node.get_name()}\n')
+        node_children = node.get_children()
+        for child in node_children:
+            self._print_node(child, file, indent_symbol_num+1)
+    def print_tree(self, file_path):
+        abs_file_path = str(Path(file_path).resolve())
+        with open(abs_file_path, "w") as file:
+            self._print_node(self._root, file, 0)
+            file.close()
+    def dump_tree(self, dump_file_path):
+        abs_dump_file_path = str(Path(dump_file_path).resolve())
+        with open(abs_dump_file_path, "wb") as dump_file:
+            pickle.dump(self, dump_file)
+            dump_file.close()
+
     
 
 
@@ -216,7 +241,10 @@ class TeamGanttConverter:
     def _is_child_parent_relation(self, child_entry, parent_entry):
         child_index = child_entry[ColumnName.TASK_INDEX]
         parent_index = parent_entry[ColumnName.TASK_INDEX]
-        return child_index.find(parent_index) == 0 and (len(child_index.split('.')) - len(parent_index.split('.')) == 1)
+        if parent_index.rfind(".") != (len(parent_index)-1):
+            parent_index = parent_index + "."
+        res = child_index.find(parent_index) == 0 and (len(child_index.split('.')) - len(parent_index.split('.')) == 0)
+        return res
     def _build_tree(self, parent_index):
         revised_teamgantt_database = self._teamgantt_loader.get_database()
         parent_entry = revised_teamgantt_database.iloc[parent_index, :]
@@ -243,26 +271,33 @@ class TeamGanttConverter:
         self._init_tree()
         project_entry, project_entry_index = self._teamgantt_loader.get_project_entry()
         self._build_tree(project_entry_index)
-    def get_tree(self):
-        return self._teamgantt_tree
+    def print_tree(self, file_path):
+        return self._teamgantt_tree.print_tree(file_path)
+    def dump_tree(self, file_path):
+        return self._teamgantt_tree.dump_tree(file_path)
+   
         
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-csv_file', dest='csv_file', type=str)
+    arg_parser.add_argument('-out_file', dest='out_file', type=str)
+    arg_parser.add_argument('-dump_file', dest='dump_file', type=str)
+    arg_parser.add_argument('-cmd', dest='cmd', type=str)
 
     args = arg_parser.parse_args()
-    team_gantt_db = pd.read_csv(args.csv_file)
-    print(team_gantt_db.describe())
-    print(team_gantt_db.info())
-    print(team_gantt_db.axes[1])
-    print(team_gantt_db[['Name / Title', 'Predecessors']])
-
-    tmgconverter = TeamGanttConverter(team_gantt_db)
-    tmgconverter.process()
-    team_gantt_tree = tmgconverter.get_tree()
-    pass
-    #print(team_gantt_db.describe())
-    #print(team_gantt_db.info())
-    #print(team_gantt_db.axes[1])
-    #print(team_gantt_db)
+    cmd = args.cmd
+    if cmd == 'csv2tree':
+        team_gantt_db = pd.read_csv(args.csv_file)
+        tmgconverter = TeamGanttConverter(team_gantt_db)
+        tmgconverter.process()
+        dump_file = args.dump_file
+        tmgconverter.dump_tree(dump_file)
+        out_file = args.out_file
+        tmgconverter.print_tree(out_file)
+    elif cmd == 'dump2tree':
+        f = open(args.dump_file, "rb")
+        team_gantt_tree = pickle.load(f)
+        f.close()
+        team_gantt_tree.print_tree(args.out_file)
+        
