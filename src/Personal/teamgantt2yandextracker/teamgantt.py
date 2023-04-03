@@ -26,136 +26,10 @@ class ColumnName(Enum):
     NOTES = 7
 
 
-class TeamGanttNode:
-    _task_name = None
-    _task_type = TaskType.NONE
-    _start_date = None
-    _end_date = None
-    _parent_name = None 
-    _notes = None
-    _assignee = None
-    _children = []
-    def __init__(self, task_name, task_type, start_date=None, end_date=None, notes=None, assignee=None, parent_name = None):
-        self._task_name = task_name
-        self._task_type = task_type
-        self._start_date = start_date
-        self._end_date = end_date
-        self._notes = notes
-        self._assignee = assignee
-        self._parent_name = parent_name
-    
-    def get_name(self):
-        return self._task_name
-    def set_name(self, task_name):
-        self._task_name = task_name
-    def get_parent_name(self):
-        return self._parent_name
-    def set_parent_name(self, parent_name):
-        self._parent_name = parent_name
-    def get_notes(self):
-        return self._notes
-    def set_notes(self, notes):
-        self._notes = notes
-    def get_task_type(self):
-        return self._task_type
-    def set_task_type(self, task_type):
-        self._task_type = task_type
-    def get_assignee(self):
-        return self._assignee
-    def set_assignee(self, assignee):
-        self._assignee = assignee
-    def set_dates(self, start_date=None, end_date=None):
-        if start_date != None:
-            self._start_date = start_date
-        if end_date != None:
-            self._end_date = end_date
-    def get_dates(self):
-        return [self._start_date, self._end_date]
-    def add_child(self, node):
-        self._children.append(node)
-    def remove_child(self, node):
-        if node in self._children: self._children.remove(node)
-    def find_child(self, child_name):
-        child = None
-        if(self._task_name == child_name):
-            return self
-        for child in self._children:
-            if(child.get_name() == child_name):
-                return child
-        else:
-             for child in self._children:
-                res_child = child.find_child(child_name)
-                if res_child:
-                    return res_child
-        return None
-    def get_children(self):
-        return self._children
-    
 
-
-class TeamganttTree:
-    _root = None
-    def __init__(self, projectname, start_date=None, end_date=None, notes=None, assignee=None):
-        self._root = TeamGanttNode(projectname, TaskType.PROJECT, start_date=start_date, end_date=end_date, notes=notes, assignee=assignee)
-    def _find_node(self, node_name):
-        return self._root.find_child(node_name)
-    def add_node(self, node):
-        print(f"node: {node.get_name()}")
-        print(f"parent_node: {node.get_parent_name()}")
-        if node.get_parent_name() == None:
-            self._root.add_child(node)
-        else:
-            parent_node = self._root.find_child(node.get_parent_name())
-            if(parent_node != None):
-                print(f"found parent node: {parent_node.get_name()}")
-                parent_node.add_child(node)
-    def remove_node(self, node_name):
-        node = self._root.find_child(node_name)
-        if node == None:
-            return
-        parent_node = self._root.find_child(node.get_parent_name())
-        if(parent_node == None):
-            self._root.remove_child(node)
-        else:
-            parent_node._root.remove_child(node)
-    def move_node(self, node_name, newparent_name):
-        node = self._root.find_child(node_name)
-        if node == None:
-            return
-        new_parent_node = self._root.find_child(newparent_name)
-        if new_parent_node == None:
-            return
-        if node.get_parent_name() == None:
-            self._root.remove_child(node)
-        else:
-            old_parent_node = self._root.find_child(node.get_parent_name())
-            if(old_parent_node != None):
-                old_parent_node.remove_child(node)
-
-        new_parent_node.add_child(node)
-    def _print_node(self, node, file, indent_symbol_num):
-        indent_string = indent_symbol_num*'\t'
-        link_symbol = f'{indent_string}|\n{indent_string}---'
-        file.write(f'{link_symbol}{node.get_name()}\n')
-        node_children = node.get_children()
-        for child in node_children:
-            self._print_node(child, file, indent_symbol_num+1)
-    def print_tree(self, file_path):
-        abs_file_path = str(Path(file_path).resolve())
-        with open(abs_file_path, "w") as file:
-            self._print_node(self._root, file, 0)
-            file.close()
-    def dump_tree(self, dump_file_path):
-        abs_dump_file_path = str(Path(dump_file_path).resolve())
-        with open(abs_dump_file_path, "wb") as dump_file:
-            pickle.dump(self, dump_file)
-            dump_file.close()
-
-    
 
 
 class TeamganttLoader:
-    _teamgantt_db = None
     def __init__(self, teamgantt_db, *args, **kwargs):
         self._teamgantt_db = teamgantt_db
     def _entry_is_mapped(self, entry, templates):
@@ -223,10 +97,149 @@ class TeamganttLoader:
         project_entry_index = i
         return [project_entry, project_entry_index]
 
+class TeamGanttNode:
+    def __init__(self, task_name, task_type, start_date=None, end_date=None, notes=None, assignee=None, parent_name = None):
+        self._task_name = task_name
+        self._task_type = task_type
+        self._start_date = start_date
+        self._end_date = end_date
+        self._notes = notes
+        self._assignee = assignee
+        self._parent_name = parent_name
+        self._children = []
+        print(f'Creating {self._task_name} node')
+    def __del__(self):
+        print(f'Destroying {self._task_name} node')
+    def get_name(self):
+        return self._task_name
+    def set_name(self, task_name):
+        self._task_name = task_name
+    def get_parent_name(self):
+        return self._parent_name
+    def set_parent_name(self, parent_name):
+        self._parent_name = parent_name
+    def get_notes(self):
+        return self._notes
+    def set_notes(self, notes):
+        self._notes = notes
+    def get_task_type(self):
+        return self._task_type
+    def set_task_type(self, task_type):
+        self._task_type = task_type
+    def get_assignee(self):
+        return self._assignee
+    def set_assignee(self, assignee):
+        self._assignee = assignee
+    def set_dates(self, start_date=None, end_date=None):
+        if start_date != None:
+            self._start_date = start_date
+        if end_date != None:
+            self._end_date = end_date
+    def get_dates(self):
+        return [self._start_date, self._end_date]
+    def add_child(self, node):
+        self._children.append(node)
+        pass
+    def remove_child(self, node):
+        if node in self._children: self._children.remove(node)
+    def find_child(self, child_name):
+        child = None
+        if(self._task_name == child_name):
+            return self
+        for child in self._children:
+            if(child.get_name() == child_name):
+                return child
+        else:
+             for child in self._children:
+                res_child = child.find_child(child_name)
+                if res_child != None:
+                    return res_child
+        return None
+    def get_children(self):
+        return self._children
+    
+
+
+class TeamganttTree:
+    def __init__(self, projectname, start_date=None, end_date=None, notes=None, assignee=None):
+        self._root = TeamGanttNode(projectname, TaskType.PROJECT, start_date=start_date, end_date=end_date, notes=notes, assignee=assignee)
+    def _find_node(self, node_name):
+        return self._root.find_child(node_name)
+    def add_node(self, node):
+        print(f"node: {node.get_name()}")
+        print(f"parent_node: {node.get_parent_name()}")
+        if node.get_parent_name() == None:
+            self._root.add_child(node)
+        else:
+            parent_node = self._root.find_child(node.get_parent_name())
+            if(parent_node != None):
+                print(f"found parent node: {parent_node.get_name()}")
+                parent_node.add_child(node)
+                pass
+    def remove_node(self, node_name):
+        node = self._root.find_child(node_name)
+        if node == None:
+            return
+        parent_node = self._root.find_child(node.get_parent_name())
+        if(parent_node == None):
+            self._root.remove_child(node)
+        else:
+            parent_node._root.remove_child(node)
+    def move_node(self, node_name, newparent_name):
+        node = self._root.find_child(node_name)
+        if node == None:
+            return
+        new_parent_node = self._root.find_child(newparent_name)
+        if new_parent_node == None:
+            return
+        if node.get_parent_name() == None:
+            self._root.remove_child(node)
+        else:
+            old_parent_node = self._root.find_child(node.get_parent_name())
+            if(old_parent_node != None):
+                old_parent_node.remove_child(node)
+
+        new_parent_node.add_child(node)
+    def _print_node(self, node, file, indent_symbol_num):
+        indent_string = indent_symbol_num*'\t'
+        link_symbol = f'{indent_string}|\n{indent_string}---'
+        if file != None:
+            file.write(f'{link_symbol}{node.get_name()}\n')
+        else:
+            print(f'{link_symbol}{node.get_name()}')
+        node_children = node.get_children()
+        if len(node_children) == 0:
+            return
+        for child in node_children:
+            self._print_node(child, file, indent_symbol_num+1)
+    def print_tree(self, file_path):
+        abs_file_path = str(Path(file_path).resolve())
+        with open(abs_file_path, "w") as file:
+            self._print_node(self._root, file, 0)
+            file.close()
+    def _print_node2(self, node):
+        print(f'{node.get_name()}')
+        node_children = node.get_children()
+        if len(node_children) != 0:
+            print(f'{node.get_name()} children:')
+            for child in node_children:
+                self._print_node2(child)
+    def print_tree2(self):
+        self._print_node2(self._root)
+    def dump_tree(self, dump_file_path):
+        abs_dump_file_path = str(Path(dump_file_path).resolve())
+        with open(abs_dump_file_path, "wb") as dump_file:
+            pickle.dump(self, dump_file)
+            dump_file.close()
+
+    
+
+
 # Pandas Dataframe to Tree
 class TeamGanttConverter:
     _teamgantt_loader = None
     _teamgantt_tree = None
+    _teamgantt_db = None
     def __init__(self, team_gantt_db):
         self._teamgantt_loader = TeamganttLoader(team_gantt_db)
     def _init_tree(self):
@@ -246,15 +259,13 @@ class TeamGanttConverter:
         res = child_index.find(parent_index) == 0 and (len(child_index.split('.')) - len(parent_index.split('.')) == 0)
         return res
     def _build_tree(self, parent_index):
-        revised_teamgantt_database = self._teamgantt_loader.get_database()
-        parent_entry = revised_teamgantt_database.iloc[parent_index, :]
-        if parent_entry.empty:
-                raise Exception('There is no parent entry with index {parent_index}'.format(parent_index))
-        for i in range(parent_index+1, len(revised_teamgantt_database)):
-            cur_entry = revised_teamgantt_database.iloc[i, :]
-            if cur_entry[ColumnName.TASK_TYPE] == TaskType.PROJECT:
-                continue
-            if self._is_child_parent_relation(cur_entry, parent_entry) != True:
+        teamgantt_db = self._teamgantt_db
+        parent_entry = teamgantt_db.iloc[parent_index, :]
+        cur_entry_index = parent_index+1
+        while cur_entry_index < len(teamgantt_db):
+            cur_entry = teamgantt_db.iloc[cur_entry_index, :]
+            if cur_entry[ColumnName.TASK_TYPE] == TaskType.PROJECT or self._is_child_parent_relation(cur_entry, parent_entry) != True:
+                cur_entry_index += 1
                 continue
             cur_entry_node = TeamGanttNode(cur_entry[ColumnName.TASK_NAME],
                                            cur_entry[ColumnName.TASK_TYPE], 
@@ -264,12 +275,16 @@ class TeamGanttConverter:
                                            cur_entry[ColumnName.ASSIGNEE],
                                            parent_entry[ColumnName.TASK_NAME])
             self._teamgantt_tree.add_node(cur_entry_node)
+            self._teamgantt_tree.print_tree2()
             if cur_entry[ColumnName.TASK_TYPE] == TaskType.GROUP:
-                self._build_tree(i)
+                self._build_tree(cur_entry_index)
+            teamgantt_db.drop(index = cur_entry.name, inplace=True, axis = 0)
     def process(self):
         self._teamgantt_loader.process_database()
         self._init_tree()
         project_entry, project_entry_index = self._teamgantt_loader.get_project_entry()
+        self._teamgantt_db = self._teamgantt_loader.get_database()
+        self._teamgantt_db = self._teamgantt_db.copy(deep=True)
         self._build_tree(project_entry_index)
     def print_tree(self, file_path):
         return self._teamgantt_tree.print_tree(file_path)
