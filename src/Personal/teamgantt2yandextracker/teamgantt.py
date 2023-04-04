@@ -98,26 +98,31 @@ class TeamganttLoader:
         return [project_entry, project_entry_index]
 
 class TeamGanttNode:
-    def __init__(self, task_name, task_type, start_date=None, end_date=None, notes=None, assignee=None, parent_name = None):
+    def __init__(self, task_name, task_id, task_type, start_date=None, end_date=None, notes=None, assignee=None, parent_id = None):
         self._task_name = task_name
+        self._task_id = task_id
         self._task_type = task_type
         self._start_date = start_date
         self._end_date = end_date
         self._notes = notes
         self._assignee = assignee
-        self._parent_name = parent_name
+        self._parent_id = parent_id
         self._children = []
         print(f'Creating {self._task_name} node')
     def __del__(self):
         print(f'Destroying {self._task_name} node')
+    def get_id(self):
+        return self._task_id
+    def set_id(self, task_id):
+        self._task_id = task_id
     def get_name(self):
         return self._task_name
     def set_name(self, task_name):
         self._task_name = task_name
-    def get_parent_name(self):
-        return self._parent_name
-    def set_parent_name(self, parent_name):
-        self._parent_name = parent_name
+    def get_parent_id(self):
+        return self._parent_id
+    def set_parent_id(self, parent_id):
+        self._parent_id = parent_id
     def get_notes(self):
         return self._notes
     def set_notes(self, notes):
@@ -142,16 +147,16 @@ class TeamGanttNode:
         pass
     def remove_child(self, node):
         if node in self._children: self._children.remove(node)
-    def find_child(self, child_name):
+    def find_child(self, child_id):
         child = None
-        if(self._task_name == child_name):
+        if(self._task_id == child_id):
             return self
         for child in self._children:
-            if(child.get_name() == child_name):
+            if(child.get_id() == child_id):
                 return child
         else:
              for child in self._children:
-                res_child = child.find_child(child_name)
+                res_child = child.find_child(child_id)
                 if res_child != None:
                     return res_child
         return None
@@ -161,43 +166,38 @@ class TeamGanttNode:
 
 
 class TeamganttTree:
-    def __init__(self, projectname, start_date=None, end_date=None, notes=None, assignee=None):
-        self._root = TeamGanttNode(projectname, TaskType.PROJECT, start_date=start_date, end_date=end_date, notes=notes, assignee=assignee)
-    def _find_node(self, node_name):
-        return self._root.find_child(node_name)
+    def __init__(self, projectname, project_id, start_date=None, end_date=None, notes=None, assignee=None):
+        self._root = TeamGanttNode(projectname, project_id, TaskType.PROJECT, start_date=start_date, end_date=end_date, notes=notes, assignee=assignee)
     def add_node(self, node):
-        print(f"node: {node.get_name()}")
-        print(f"parent_node: {node.get_parent_name()}")
-        if node.get_parent_name() == None:
+        #print(f"node: {node.get_name()}")
+        #print(f"parent_node: {node.get_parent_name()}")
+        if node.get_parent_id() == None:
             self._root.add_child(node)
         else:
-            parent_node = self._root.find_child(node.get_parent_name())
+            parent_node = self._root.find_child(node.get_parent_id())
             if(parent_node != None):
                 print(f"found parent node: {parent_node.get_name()}")
                 parent_node.add_child(node)
                 pass
-    def remove_node(self, node_name):
-        node = self._root.find_child(node_name)
+    def remove_node(self, node_id):
+        node = self._root.find_child(node_id)
         if node == None:
             return
-        parent_node = self._root.find_child(node.get_parent_name())
+        parent_node = self._root.find_child(node.get_parent_id())
         if(parent_node == None):
             self._root.remove_child(node)
         else:
-            parent_node._root.remove_child(node)
-    def move_node(self, node_name, newparent_name):
-        node = self._root.find_child(node_name)
+            parent_node.remove_child(node)
+    def move_node(self, node_id, newparent_id):
+        node = self._root.find_child(node_id)
         if node == None:
             return
-        new_parent_node = self._root.find_child(newparent_name)
+        new_parent_node = self._root.find_child(newparent_id)
         if new_parent_node == None:
             return
-        if node.get_parent_name() == None:
-            self._root.remove_child(node)
-        else:
-            old_parent_node = self._root.find_child(node.get_parent_name())
-            if(old_parent_node != None):
-                old_parent_node.remove_child(node)
+        old_parent_node = self._root.find_child(node.get_parent_id())
+        if(old_parent_node != None):
+            old_parent_node.remove_child(node)
 
         new_parent_node.add_child(node)
     def _print_node(self, node, file, indent_symbol_num):
@@ -247,6 +247,7 @@ class TeamGanttConverter:
         if project_entry.empty:
             raise Exception('There is no project info in user provided dataframe')
         self._teamgantt_tree = TeamganttTree(project_entry[ColumnName.TASK_NAME], 
+                                             project_entry[ColumnName.TASK_INDEX], 
                                              project_entry[ColumnName.START_DATE], 
                                              project_entry[ColumnName.END_DATE],
                                              project_entry[ColumnName.NOTES],
@@ -268,12 +269,13 @@ class TeamGanttConverter:
                 cur_entry_index += 1
                 continue
             cur_entry_node = TeamGanttNode(cur_entry[ColumnName.TASK_NAME],
+                                           cur_entry[ColumnName.TASK_INDEX], 
                                            cur_entry[ColumnName.TASK_TYPE], 
                                            cur_entry[ColumnName.START_DATE], 
                                            cur_entry[ColumnName.END_DATE],
                                            cur_entry[ColumnName.NOTES],
                                            cur_entry[ColumnName.ASSIGNEE],
-                                           parent_entry[ColumnName.TASK_NAME])
+                                           parent_entry[ColumnName.TASK_INDEX])
             self._teamgantt_tree.add_node(cur_entry_node)
             self._teamgantt_tree.print_tree2()
             if cur_entry[ColumnName.TASK_TYPE] == TaskType.GROUP:
