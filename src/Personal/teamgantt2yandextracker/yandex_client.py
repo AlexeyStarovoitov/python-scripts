@@ -16,6 +16,7 @@ class TaskType(Enum):
 class YandexTrackerClinet(TrackerClient):
     def __init__(self, oath_token, org_id):
         super(YandexTrackerClinet, self).__init__(oath_token, org_id)
+        self._garbage_queue = "garbage"
     def create_project(self, project_name, queues, description, lead=None, start_date=None, end_date=None):
         create_params = dict(name = project_name, queues=queues, description = description, lead = lead, startDate=start_date, endDate = end_date)
         resp = self.projects.create(params=None, **create_params)
@@ -69,8 +70,8 @@ class YandexTrackerClinet(TrackerClient):
             if issue_name == issue_type.name:
                 return issue_type.id
         return None
-    def create_task(self, task_name, task_type, queue_name, notes, start_data=None, end_date=None, assignee=None):
-        data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_data, dueDate=end_date, assignee=assignee)
+    def create_task(self, task_name, project_id, task_type, queue_name, notes, start_data=None, end_date=None, assignee=None):
+        data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_data, dueDate=end_date, assignee=assignee, project=project_id)
         resp = self.issues.create(params=None, **data)
         return resp.id
     def _get_task_id(self, task_name):
@@ -78,10 +79,11 @@ class YandexTrackerClinet(TrackerClient):
             if task.summary == task_name:
                 return task.id
         return None
-    def delete_task(self, task_name):
-        task = self.issues[self._get_task_id(task_name)]
+    def delete_task(self, task_id):
+        task = self.issues[task_id]
         if task:
-            task.delete()
+            data = {"project":None, "queue":self._garbage_queue}
+            task.update(**data)
     def link_tasks(self, task_1_name, task_2_name, relations):
         task_1 = self.issues[task_1_name]
         #task_2 = self.issues[task_2_name]
@@ -148,9 +150,6 @@ if __name__ == '__main__':
         for step in workflow['steps']:
             print(step)
 
-
-    
-    '''
     print("Users:")
     for user in users:
         print('')
@@ -171,8 +170,8 @@ if __name__ == '__main__':
     queue_params["issueTypesConfig"] = issueTypesConfig
     yandex_tracker.create_queue(**queue_params)
     yandex_tracker.delete_queue(queue_params["key"])
-    
     '''
+    
     # task methods check
     task_params = {}
     task_params["task_name"]="Dummy Task"
@@ -181,5 +180,5 @@ if __name__ == '__main__':
     task_params["notes"] = "Just checking"
     #yandex_tracker.create_task(**task_params)
     #yandex_tracker.delete_task(task_params["task_name"])
-    '''
+    
 
