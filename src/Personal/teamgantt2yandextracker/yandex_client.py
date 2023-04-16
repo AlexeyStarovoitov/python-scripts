@@ -1,10 +1,11 @@
 from yandex_tracker_client import TrackerClient
+from yandex_tracker_client import exceptions
 from enum import Enum
 import argparse
 import copy
+import re
 
 class TaskRealtionType(Enum):
-    DEPENDENT_TASK_RELATION_TYPE = 1
     PARENT_TASK_RELATION_TYPE = 2
     SUBTASK_RELATION_TYPE = 3
 
@@ -13,11 +14,30 @@ class TaskType(Enum):
     SIMPLE_TASK_TYPE = 2
 
 
-class YandexTrackerClinet(TrackerClient):
-    def __init__(self, oath_token, org_id):
-        super(YandexTrackerClinet, self).__init__(oath_token, org_id)
-        self._garbage_queue = "garbage"
-    def create_project(self, project_name, queues, description, lead=None, start_date=None, end_date=None):
+class YandexTrackerClient(TrackerClient):
+    def __init__(self, oath_token, org_id, lead_lastname):
+        super(YandexTrackerClient, self).__init__(oath_token, org_id)
+        self._default_user = self._get_default_user(lead_lastname)
+        if self._default_user == None:
+            raise Exception("Wrong lead lastname")
+        self._garbage_queue = self._find_garbage_queue()
+        if self._garbage_queue == None: 
+            self._garbage_queue = self.create_queue(queue_name="garbage", lead = self._default_user)
+    def _get_default_user(self, user_lastname):
+        user_lastname = f"^{user_lastname}[a-z]*[1-9]*[-]*"
+        for user in self.users:
+            if re.search(user_lastname, user.login, re.IGNORECASE):
+                return user.login
+        else:
+            return None
+    def _find_garbage_queue(self):
+        garbage_queue_key_pattern = 'garbage[a-z]*[1-9]*'
+        for queue in self.queues:
+            if re.search(garbage_queue_key_pattern, queue.key, re.IGNORECASE):
+                return queue.key
+        else:
+            return None
+    def create_project(self, project_name, queues, description=None, lead=None, start_date=None, end_date=None):
         create_params = dict(name = project_name, queues=queues, description = description, lead = lead, startDate=start_date, endDate = end_date)
         resp = self.projects.create(params=None, **create_params)
         return resp.id
@@ -52,48 +72,85 @@ class YandexTrackerClinet(TrackerClient):
             new_resolution = dict(id=resolution.id, key=resolution.key, name=resolution.name)
             new_resolutions.append(new_resolution)
         return new_resolutions
-    def create_queue(self, queue_name, key, type, priority, lead, issueTypesConfig):
-        data = dict(name=queue_name, key = key, defaultType=type, defaultPriority=priority, lead=lead, issueTypesConfig=issueTypesConfig)
-        resp = self.queues.create(params=None, **data)
-        return resp.id
-    def _get_queue_id(self, key):
-        for queue in self.queues:
-            if queue.key == key:
-                return queue
+    def _generate_queue_key(self, queue_key_zero):
+        queue_key = queue_key_zero.capitalize()
+        queue_key = ''.join([i for i in queue_key if i.isalpha()])
+        suffix = queue_key[-1]
+        queue_key += suffix
+        return queue_key
+    def _get_default_workflow_id(self):
+        _def_workflow_pattern = '^quickstart[a-z]*[1-9]*'
+        for workflow in self.workflows:
+            if re.search(_def_workflow_pattern, workflow.id, re.IGNORECASE):
+                return workflow.id
         return None
-    def delete_queue(self, key):
-        queue = self._get_queue_id(key)
-        if queue:
-            queue.delete()
-    def get_issue_type_id(self, issue_name):
+    def _generate_issue_type_configs(self):
+        def_workflow_id = self._get_default_workflow_id()
+        issueTypesConfig = []
+        resolutions_config = [res.key for res in self.resolutions]
         for issue_type in self.issue_types:
-            if issue_name == issue_type.name:
-                return issue_type.id
-        return None
+            cur_type_config = dict(issueType = issue_type.key, workflow = def_workflow_id, resolutions = resolutions_config)
+            issueTypesConfig.append(cur_type_config)
+        return issueTypesConfig
+    def create_queue(self, queue_name, lead):
+        queue_params = {}
+        queue_params["name"] = queue_name
+        queue_params["key"] = self._generate_queue_key(queue_name)
+        queue_params["lead"] = lead if lead != None else self._default_user
+        queue_params["defaultPriority"] = "normal"
+        queue_params["defaultType"] = "task"
+        queue_params["issueTypesConfig"] = self._generate_issue_type_configs()
+        queue_was_created = False
+        while queue_was_created == False:
+            try:
+                resp = self.queues.create(params=None, **queue_params)
+                queue_was_created = True
+            except exceptions.Conflict:
+                queue_params["key"] = self._generate_queue_key(queue_params["key"])
+        return resp.key   
+    def delete_queue(self, key):
+        queue = self.queues[key]
+        queue.delete()
     def create_task(self, task_name, project_id, task_type, queue_name, notes, start_data=None, end_date=None, assignee=None):
         data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_data, dueDate=end_date, assignee=assignee, project=project_id)
         resp = self.issues.create(params=None, **data)
         return resp.id
-    def _get_task_id(self, task_name):
-        for task in self.issues:
-            if task.summary == task_name:
-                return task.id
-        return None
-    def delete_task(self, task_id):
-        task = self.issues[task_id]
+    def delete_task(self, task_key):
+        task = self.issues[task_key]
         if task:
-            data = {"project":None, "queue":self._garbage_queue}
+            data = {"project":None}
             task.update(**data)
-    def link_tasks(self, task_1_name, task_2_name, relations):
-        task_1 = self.issues[task_1_name]
-        #task_2 = self.issues[task_2_name]
-        #self.issues.link(task_1, task_2, relations)
-        task_1.links.create(issue=task_2_name, relationship=relations)
-    def unlink_tasks(self, task_1_name, task_2_name):
-        task_1 = self.issues[task_1_name]
-        task_2 = self.issues[task_2_name]
-        link = task_1.links[task_2.key]
-        link.delete()
+            task.move_to(self._garbage_queue)
+    @staticmethod
+    def _map_task_relation_type(relation_type_enum):
+        _map_arr = {
+            TaskRealtionType.PARENT_TASK_RELATION_TYPE: "is parent task for",
+            TaskRealtionType.SUBTASK_RELATION_TYPE: "is subtask for",
+        }
+        for rel in _map_arr:
+            if rel == relation_type_enum:
+                return _map_arr[rel]
+        else:
+            return None
+    @staticmethod
+    def _find_link(links, link_task_key):
+        for link in links:
+            if link.object.key == link_task_key:
+                return link.id
+        else:
+            return None
+    def link_tasks(self, task_1_key, task_2_key, relations):
+        task_1 = self.issues[task_1_key]
+        relation_str = YandexTrackerClient._map_task_relation_type(relations)
+        task_1.links.create(issue=task_2_key, relationship=relation_str)
+    def unlink_tasks(self, task_1_key, task_2_key):
+        task_1 = self.issues[task_1_key]
+        link_id = YandexTrackerClient._find_link(task_1.links, task_2_key)
+        if link_id:
+            link = task_1.links[link_id]
+            link.delete()
+        
+        
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
@@ -101,7 +158,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('-org_id', dest='org_id', type=str)
     args = arg_parser.parse_args()
 
-    yandex_tracker = YandexTrackerClinet(oath_token=args.oauth_token, org_id=args.org_id)
+    yandex_tracker = YandexTrackerClient(oath_token=args.oauth_token, org_id=args.org_id, lead_lastname='starovoitov')
     for project in yandex_tracker.projects:
         print(project['name'])
     
@@ -157,7 +214,7 @@ if __name__ == '__main__':
         print(user.login)
     
     queue_params = {}
-    queue_params["queue_name"] = "fake_garbage"
+    queue_params["queue_name"] = "garbage"
     queue_params["key"] = "FAKEGARBAGEEE"
     queue_params["lead"] = "starovoitov-rep"
     queue_params["priority"] = "normal"
@@ -175,10 +232,11 @@ if __name__ == '__main__':
     # task methods check
     task_params = {}
     task_params["task_name"]="Dummy Task"
-    task_params["task_type"] = yandex_tracker.get_issue_type_id("Задача")
-    task_params["queue_name"] = queues[0].key
+    #task_params["task_type"] = yandex_tracker.get_issue_type_id("Задача")
+    #task_params["queue_name"] = queues[0].key
     task_params["notes"] = "Just checking"
     #yandex_tracker.create_task(**task_params)
-    #yandex_tracker.delete_task(task_params["task_name"])
-    
+    #yandex_tracker.delete_task("MYLIFE-44")
+    yandex_tracker.link_tasks("MYLIFE-45", "MYLIFE-46", TaskRealtionType.PARENT_TASK_RELATION_TYPE)
+    yandex_tracker.unlink_tasks("MYLIFE-45", "MYLIFE-46")
 
