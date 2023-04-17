@@ -168,6 +168,8 @@ class TeamGanttNode:
 class TeamganttTree:
     def __init__(self, projectname, project_id, start_date=None, end_date=None, notes=None, assignee=None):
         self._root = TeamGanttNode(projectname, project_id, TaskType.PROJECT, start_date=start_date, end_date=end_date, notes=notes, assignee=assignee)
+    def get_root_node(self):
+        return self._root
     def add_node(self, node):
         #print(f"node: {node.get_name()}")
         #print(f"parent_node: {node.get_parent_name()}")
@@ -237,9 +239,6 @@ class TeamganttTree:
 
 # Pandas Dataframe to Tree
 class TeamGanttConverter:
-    _teamgantt_loader = None
-    _teamgantt_tree = None
-    _teamgantt_db = None
     def __init__(self, team_gantt_db):
         self._teamgantt_loader = TeamganttLoader(team_gantt_db)
     def _init_tree(self):
@@ -288,6 +287,8 @@ class TeamGanttConverter:
         self._teamgantt_db = self._teamgantt_loader.get_database()
         self._teamgantt_db = self._teamgantt_db.copy(deep=True)
         self._build_tree(project_entry_index)
+    def get_tree_root(self):
+        self._teamgantt_tree.get_root_node()
     def print_tree(self, file_path):
         return self._teamgantt_tree.print_tree(file_path)
     def dump_tree(self, file_path):

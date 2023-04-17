@@ -5,7 +5,7 @@ import argparse
 import copy
 import re
 
-class TaskRealtionType(Enum):
+class TaskRelationType(Enum):
     PARENT_TASK_RELATION_TYPE = 2
     SUBTASK_RELATION_TYPE = 3
 
@@ -115,6 +115,10 @@ class YandexTrackerClient(TrackerClient):
         data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_data, dueDate=end_date, assignee=assignee, project=project_id)
         resp = self.issues.create(params=None, **data)
         return resp.id
+    def get_task(self, task_key):
+        return self.issues[task_key]
+    def get_project(self, project_key):
+        return self.projects[project_key]
     def delete_task(self, task_key):
         task = self.issues[task_key]
         if task:
@@ -124,8 +128,8 @@ class YandexTrackerClient(TrackerClient):
     @staticmethod
     def _map_task_relation_type(relation_type_enum):
         _map_arr = {
-            TaskRealtionType.PARENT_TASK_RELATION_TYPE: "is parent task for",
-            TaskRealtionType.SUBTASK_RELATION_TYPE: "is subtask for",
+            TaskRelationType.PARENT_TASK_RELATION_TYPE: "is parent task for",
+            TaskRelationType.SUBTASK_RELATION_TYPE: "is subtask for",
         }
         for rel in _map_arr:
             if rel == relation_type_enum:
@@ -237,6 +241,6 @@ if __name__ == '__main__':
     task_params["notes"] = "Just checking"
     #yandex_tracker.create_task(**task_params)
     #yandex_tracker.delete_task("MYLIFE-44")
-    yandex_tracker.link_tasks("MYLIFE-45", "MYLIFE-46", TaskRealtionType.PARENT_TASK_RELATION_TYPE)
+    yandex_tracker.link_tasks("MYLIFE-45", "MYLIFE-46", TaskRelationType.PARENT_TASK_RELATION_TYPE)
     yandex_tracker.unlink_tasks("MYLIFE-45", "MYLIFE-46")
 
