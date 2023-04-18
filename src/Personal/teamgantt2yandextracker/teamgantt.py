@@ -239,7 +239,8 @@ class TeamganttTree:
 
 # Pandas Dataframe to Tree
 class TeamGanttConverter:
-    def __init__(self, team_gantt_db):
+    def __init__(self, team_gantt_db_csv):
+        team_gantt_db = pd.read_csv(team_gantt_db_csv)
         self._teamgantt_loader = TeamganttLoader(team_gantt_db)
     def _init_tree(self):
         project_entry, project_entry_index = self._teamgantt_loader.get_project_entry()
@@ -276,7 +277,7 @@ class TeamGanttConverter:
                                            cur_entry[ColumnName.ASSIGNEE],
                                            parent_entry[ColumnName.TASK_INDEX])
             self._teamgantt_tree.add_node(cur_entry_node)
-            self._teamgantt_tree.print_tree2()
+            #self._teamgantt_tree.print_tree2()
             if cur_entry[ColumnName.TASK_TYPE] == TaskType.GROUP:
                 self._build_tree(cur_entry_index)
             teamgantt_db.drop(index = cur_entry.name, inplace=True, axis = 0)
@@ -288,7 +289,7 @@ class TeamGanttConverter:
         self._teamgantt_db = self._teamgantt_db.copy(deep=True)
         self._build_tree(project_entry_index)
     def get_tree_root(self):
-        self._teamgantt_tree.get_root_node()
+        return self._teamgantt_tree.get_root_node()
     def print_tree(self, file_path):
         return self._teamgantt_tree.print_tree(file_path)
     def dump_tree(self, file_path):
@@ -306,8 +307,7 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
     cmd = args.cmd
     if cmd == 'csv2tree':
-        team_gantt_db = pd.read_csv(args.csv_file)
-        tmgconverter = TeamGanttConverter(team_gantt_db)
+        tmgconverter = TeamGanttConverter(args.csv_file)
         tmgconverter.process()
         dump_file = args.dump_file
         tmgconverter.dump_tree(dump_file)

@@ -4,12 +4,13 @@ from enum import Enum
 import argparse
 import copy
 import re
+from datetime import datetime
 
 class TaskRelationType(Enum):
     PARENT_TASK_RELATION_TYPE = 2
     SUBTASK_RELATION_TYPE = 3
 
-class TaskType(Enum):
+class YandexTaskType(Enum):
     EPIC_TASK_TYPE = 1
     SIMPLE_TASK_TYPE = 2
 
@@ -23,8 +24,10 @@ class YandexTrackerClient(TrackerClient):
         self._garbage_queue = self._find_garbage_queue()
         if self._garbage_queue == None: 
             self._garbage_queue = self.create_queue(queue_name="garbage", lead = self._default_user)
+    def get_lead(self):
+        return self._default_user
     def _get_default_user(self, user_lastname):
-        user_lastname = f"^{user_lastname}[a-z]*[1-9]*[-]*"
+        user_lastname = f"[a-z]*[1-9]*[-]*{user_lastname}[a-z]*[1-9]*[-]*"
         for user in self.users:
             if re.search(user_lastname, user.login, re.IGNORECASE):
                 return user.login
@@ -40,7 +43,7 @@ class YandexTrackerClient(TrackerClient):
     def create_project(self, project_name, queues, description=None, lead=None, start_date=None, end_date=None):
         create_params = dict(name = project_name, queues=queues, description = description, lead = lead, startDate=start_date, endDate = end_date)
         resp = self.projects.create(params=None, **create_params)
-        return resp.id
+        return (resp.key, resp.id)
     def delete_project(self, project_id):
         project = self.projects[project_id]
         if project:
@@ -95,7 +98,7 @@ class YandexTrackerClient(TrackerClient):
     def create_queue(self, queue_name, lead):
         queue_params = {}
         queue_params["name"] = queue_name
-        queue_params["key"] = self._generate_queue_key(queue_name)
+        queue_params["key"] = self._generate_queue_key(queue_name).capitalize()
         queue_params["lead"] = lead if lead != None else self._default_user
         queue_params["defaultPriority"] = "normal"
         queue_params["defaultType"] = "task"
@@ -111,8 +114,28 @@ class YandexTrackerClient(TrackerClient):
     def delete_queue(self, key):
         queue = self.queues[key]
         queue.delete()
-    def create_task(self, task_name, project_id, task_type, queue_name, notes, start_data=None, end_date=None, assignee=None):
-        data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_data, dueDate=end_date, assignee=assignee, project=project_id)
+    def _get_task_type_patterns(self, task_type_enum):
+        task_type_pattern_map = {
+            YandexTaskType.EPIC_TASK_TYPE: ["^epic[a-z]*[1-9]*"],
+            YandexTaskType.SIMPLE_TASK_TYPE: ["^task[a-z]*[1-9]*"]
+        }
+        if task_type_enum in task_type_pattern_map.keys():
+            return task_type_pattern_map[task_type_enum]
+        else:
+            return None
+    def _get_task_type_key(self, task_type_enum):
+        task_type_patterns = self._get_task_type_patterns(task_type_enum)
+        for issue_type in self.issue_types:
+            for pattern in task_type_patterns:
+                if re.search(pattern, issue_type.key, re.IGNORECASE):
+                    return issue_type.key
+        else:
+            return None
+    def create_task(self, task_name, project_id, task_type_enum, queue_name, notes, start_date=None, end_date=None, assignee=None):
+        task_type = self._get_task_type_key(task_type_enum)
+        if task_type == None:
+            raise Exception("Wrong task type")
+        data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_date, dueDate=end_date, assignee=assignee, project=project_id)
         resp = self.issues.create(params=None, **data)
         return resp.id
     def get_task(self, task_key):
@@ -160,11 +183,13 @@ if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-oauth_token', dest='oauth_token', type=str)
     arg_parser.add_argument('-org_id', dest='org_id', type=str)
+    arg_parser.add_argument('-lead', dest='lead', type=str)
     args = arg_parser.parse_args()
 
-    yandex_tracker = YandexTrackerClient(oath_token=args.oauth_token, org_id=args.org_id, lead_lastname='starovoitov')
+    yandex_tracker = YandexTrackerClient(oath_token=args.oauth_token, org_id=args.org_id, lead_lastname=args.lead)
     for project in yandex_tracker.projects:
         print(project['name'])
+        print(project['key'])
     
     # project methods check
     queues = list(yandex_tracker.queues.get_all())
@@ -172,7 +197,7 @@ if __name__ == '__main__':
     project_params["project_name"] = "Fake Project" 
     project_params["description"] = "Test of Yandex Tracker"
     project_params["queues"] = queues[0].key
-    project_id = yandex_tracker.create_project(**project_params)
+    (project_key, project_id) = yandex_tracker.create_project(**project_params)
     yandex_tracker.delete_project(project_id)
     
     #queue methods check
@@ -193,14 +218,16 @@ if __name__ == '__main__':
         print(priority.id)
         print(priority.key)
         print(priority.name)
+    
+    print("Issue types:")
+    for issue_type in issue_types:
+        print(issue_type)
     '''
     print("Resolutions:")
     for resolution in resolutions:
         print(resolution)
     
-    print("Issue types:")
-    for issue_type in issue_types:
-        print(issue_type)
+    
 
     workflows = yandex_tracker.get_workflows()
     print("Modified Workflows:")
@@ -235,12 +262,18 @@ if __name__ == '__main__':
     
     # task methods check
     task_params = {}
+    task_dates = []
+    task_dates.append(datetime(year=2023, month = 4, day=18, hour=14, minute=12, second=12))
+    task_dates.append(datetime(year=2023, month = 4, day=24, hour=14, minute=12, second=12))
     task_params["task_name"]="Dummy Task"
-    #task_params["task_type"] = yandex_tracker.get_issue_type_id("Задача")
-    #task_params["queue_name"] = queues[0].key
+    task_params["task_type_enum"] = YandexTaskType.SIMPLE_TASK_TYPE
+    task_params["queue_name"] = "MYLIFE"
     task_params["notes"] = "Just checking"
-    #yandex_tracker.create_task(**task_params)
+    task_params["project_id"] = project_key
+    task_params["start_date"] = task_dates[0].isoformat()
+    task_params["end_date"] = task_dates[1].isoformat()
+    yandex_tracker.create_task(**task_params)
     #yandex_tracker.delete_task("MYLIFE-44")
-    yandex_tracker.link_tasks("MYLIFE-45", "MYLIFE-46", TaskRelationType.PARENT_TASK_RELATION_TYPE)
-    yandex_tracker.unlink_tasks("MYLIFE-45", "MYLIFE-46")
+    #yandex_tracker.link_tasks("MYLIFE-45", "MYLIFE-46", TaskRelationType.PARENT_TASK_RELATION_TYPE)
+    #yandex_tracker.unlink_tasks("MYLIFE-45", "MYLIFE-46")
 
