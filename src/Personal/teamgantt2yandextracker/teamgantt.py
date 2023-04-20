@@ -2,12 +2,14 @@ from pandas.api.types import is_object_dtype
 import pandas as pd
 import numpy as np
 import re
+import json
 from enum import Enum
 import datetime
 import copy
 import argparse
 import pickle
 from pathlib import Path
+from marshmallow import fields, Schema, post_load, pre_dump
 
 class TaskType(Enum):
     NONE = 0
@@ -162,7 +164,8 @@ class TeamGanttNode:
         return None
     def get_children(self):
         return self._children
-    
+
+
 
 
 class TeamganttTree:
@@ -230,12 +233,72 @@ class TeamganttTree:
         self._print_node2(self._root)
     def dump_tree(self, dump_file_path):
         abs_dump_file_path = str(Path(dump_file_path).resolve())
-        with open(abs_dump_file_path, "wb") as dump_file:
-            pickle.dump(self, dump_file)
-            dump_file.close()
+        schema = TeamGanttNodeSchema()
+        tree_dump = schema.dump(self._root)
+        with open(abs_dump_file_path, "w") as write_file:
+            json.dump(tree_dump, write_file)
+            write_file.close()
+    @staticmethod
+    def load_tree(load_file_path):
+        abs_load_file_path = str(Path(load_file_path).resolve())
+        load_tree_json = None
+        with open(abs_load_file_path, "r") as read_file:
+            load_tree_json = json.load(read_file)
+            read_file.close()
+        schema = TeamGanttNodeSchema()
+        load_tree_root = schema.load(data=load_tree_json)
+        dates = load_tree_root.get_dates()
+        load_tree = TeamganttTree(projectname = load_tree_root.get_name(),
+                                project_id = load_tree_root.get_id(), 
+                                start_date=dates[0], 
+                                end_date = dates[1],
+                                notes = load_tree_root.get_notes(),
+                                assignee=load_tree_root.get_assignee())
+        children = load_tree_root.get_children()
+        for child in children:
+            load_tree.add_node(child)
+        return load_tree
+
+        
+
 
     
-
+class TeamGanttNodeSchema(Schema):
+    _task_name = fields.Str()
+    _task_id = fields.Str()
+    _task_type = fields.Enum(TaskType)
+    _start_date = fields.DateTime(format= "iso", allow_none = True)
+    _end_date = fields.DateTime(format= "iso", allow_none = True)
+    _notes = fields.Str(allow_none = True)
+    _assignee = fields.Str(allow_none = True)
+    _parent_id = fields.Str(allow_none = True)
+    _children = fields.Nested("self", many=True)
+    
+    @staticmethod
+    def get_node_parameters(data):
+        node_par = {}
+        for (key,val) in data.items():
+            if key == "_children":
+                continue
+            new_key = key.lstrip('_')
+            node_par[new_key] = val
+        return node_par
+    @post_load
+    def create_node(self, data, **kwargs):
+        node_par = TeamGanttNodeSchema.get_node_parameters(data)
+        node = TeamGanttNode(task_name=node_par["task_name"], 
+                             task_id = node_par["task_id"], 
+                             task_type = node_par["task_type"],
+                             start_date = node_par["start_date"],
+                             end_date = node_par["end_date"],
+                             notes = node_par["notes"],
+                             assignee = node_par["assignee"],
+                             parent_id = node_par["parent_id"])
+        load_children = data['_children']
+        if len(load_children) != 0:
+            for load_child in load_children:
+                node.add_child(load_child)
+        return node
 
 # Pandas Dataframe to Tree
 class TeamGanttConverter:
