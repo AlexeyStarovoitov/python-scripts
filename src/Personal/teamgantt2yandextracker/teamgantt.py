@@ -1,6 +1,7 @@
 from pandas.api.types import is_object_dtype
 import pandas as pd
 import numpy as np
+from numpy import nan
 import re
 import json
 from enum import Enum
@@ -10,6 +11,7 @@ import argparse
 import pickle
 from pathlib import Path
 from marshmallow import fields, Schema, post_load, pre_dump
+
 
 class TaskType(Enum):
     NONE = 0
@@ -28,7 +30,8 @@ class ColumnName(Enum):
     NOTES = 7
 
 
-
+def _object_is_invalid(obj):
+    return obj == nan or not obj or obj=="nan" or obj == "null" or obj == "None"
 
 
 class TeamganttLoader:
@@ -64,14 +67,16 @@ class TeamganttLoader:
         task_type_map_dict = {
             TaskType.PROJECT: ['^project[a-z]*[1-9]*'],
             TaskType.GROUP: ['^group[a-z]*[1-9]*', '^subgroup[a-z]*[1-9]*'],
-            TaskType.TASK: ['^task[a-z]*[1-9]*']
+            TaskType.TASK: ['^task[a-z]*[1-9]*', '^milestone[a-z]*[1-9]*']
         }
         for i in type_column.index:
             cur_type = type_column.iloc[i]
             for key,value in task_type_map_dict.items():
                 if(self._entry_is_mapped(cur_type, value)):
                     type_column.iloc[i] = key
-                    break   
+                    break
+            else:
+                print(cur_type + '\n')   
         #type_column.astype(TaskType)
         return type_column
         #type_column.astype(TaskType)    
@@ -104,15 +109,24 @@ class TeamGanttNode:
         self._task_name = task_name
         self._task_id = task_id
         self._task_type = task_type
+        
+        '''
+        self._start_date = None if not start_date else start_date
+        self._end_date = None if not end_date else end_date 
+        self._notes = None if not notes else notes
+        self._assignee = None if not assignee else assignee
+        self._parent_id = None if not parent_id else parent_id 
+        '''
         self._start_date = start_date
         self._end_date = end_date
         self._notes = notes
         self._assignee = assignee
-        self._parent_id = parent_id
+        self._parent_id = parent_id 
         self._children = []
-        print(f'Creating {self._task_name} node')
+        #print(f'Creating {self._task_name} node')
     def __del__(self):
-        print(f'Destroying {self._task_name} node')
+        pass
+        #print(f'Destroying {self._task_name} node')
     def get_id(self):
         return self._task_id
     def set_id(self, task_id):
@@ -165,7 +179,42 @@ class TeamGanttNode:
     def get_children(self):
         return self._children
 
-
+class TeamGanttNodeSchema(Schema):
+    _task_name = fields.Str()
+    _task_id = fields.Str()
+    _task_type = fields.Enum(TaskType)
+    _start_date = fields.DateTime(format= "iso", allow_none = True)
+    _end_date = fields.DateTime(format= "iso", allow_none = True)
+    _notes = fields.Str(allow_none = True)
+    _assignee = fields.Str(allow_none = True)
+    _parent_id = fields.Str(allow_none = True)
+    _children = fields.Nested("self", many=True)
+    
+    @staticmethod
+    def get_node_parameters(data):
+        node_par = {}
+        for (key,val) in data.items():
+            if key == "_children":
+                continue
+            new_key = key.lstrip('_')
+            node_par[new_key] = val
+        return node_par
+    @post_load
+    def create_node(self, data, **kwargs):
+        node_par = TeamGanttNodeSchema.get_node_parameters(data)
+        node = TeamGanttNode(task_name=node_par["task_name"], 
+                             task_id = node_par["task_id"], 
+                             task_type = node_par["task_type"],
+                             start_date = node_par["start_date"],
+                             end_date = node_par["end_date"],
+                             notes = node_par["notes"],
+                             assignee = node_par["assignee"],
+                             parent_id = node_par["parent_id"])
+        load_children = data['_children']
+        if len(load_children) != 0:
+            for load_child in load_children:
+                node.add_child(load_child)
+        return node
 
 
 class TeamganttTree:
@@ -181,7 +230,7 @@ class TeamganttTree:
         else:
             parent_node = self._root.find_child(node.get_parent_id())
             if(parent_node != None):
-                print(f"found parent node: {parent_node.get_name()}")
+                #print(f"found parent node: {parent_node.get_name()}")
                 parent_node.add_child(node)
                 pass
     def remove_node(self, node_id):
@@ -260,61 +309,26 @@ class TeamganttTree:
         return load_tree
 
         
-
-
-    
-class TeamGanttNodeSchema(Schema):
-    _task_name = fields.Str()
-    _task_id = fields.Str()
-    _task_type = fields.Enum(TaskType)
-    _start_date = fields.DateTime(format= "iso", allow_none = True)
-    _end_date = fields.DateTime(format= "iso", allow_none = True)
-    _notes = fields.Str(allow_none = True)
-    _assignee = fields.Str(allow_none = True)
-    _parent_id = fields.Str(allow_none = True)
-    _children = fields.Nested("self", many=True)
-    
-    @staticmethod
-    def get_node_parameters(data):
-        node_par = {}
-        for (key,val) in data.items():
-            if key == "_children":
-                continue
-            new_key = key.lstrip('_')
-            node_par[new_key] = val
-        return node_par
-    @post_load
-    def create_node(self, data, **kwargs):
-        node_par = TeamGanttNodeSchema.get_node_parameters(data)
-        node = TeamGanttNode(task_name=node_par["task_name"], 
-                             task_id = node_par["task_id"], 
-                             task_type = node_par["task_type"],
-                             start_date = node_par["start_date"],
-                             end_date = node_par["end_date"],
-                             notes = node_par["notes"],
-                             assignee = node_par["assignee"],
-                             parent_id = node_par["parent_id"])
-        load_children = data['_children']
-        if len(load_children) != 0:
-            for load_child in load_children:
-                node.add_child(load_child)
-        return node
-
 # Pandas Dataframe to Tree
 class TeamGanttConverter:
     def __init__(self, team_gantt_db_csv):
         team_gantt_db = pd.read_csv(team_gantt_db_csv)
         self._teamgantt_loader = TeamganttLoader(team_gantt_db)
+        self._dump_file = "C:\\Users\\Алексей\\python-scripts\\out\\dump_tree.json"
     def _init_tree(self):
         project_entry, project_entry_index = self._teamgantt_loader.get_project_entry()
         if project_entry.empty:
             raise Exception('There is no project info in user provided dataframe')
+        '''
         self._teamgantt_tree = TeamganttTree(project_entry[ColumnName.TASK_NAME], 
                                              project_entry[ColumnName.TASK_INDEX], 
                                              project_entry[ColumnName.START_DATE], 
                                              project_entry[ColumnName.END_DATE],
                                              project_entry[ColumnName.NOTES],
                                              project_entry[ColumnName.ASSIGNEE])
+        '''
+        self._teamgantt_tree = TeamganttTree(project_entry[ColumnName.TASK_NAME], 
+                                             project_entry[ColumnName.TASK_INDEX])
     def _is_child_parent_relation(self, child_entry, parent_entry):
         child_index = child_entry[ColumnName.TASK_INDEX]
         parent_index = parent_entry[ColumnName.TASK_INDEX]
@@ -331,6 +345,15 @@ class TeamGanttConverter:
             if cur_entry[ColumnName.TASK_TYPE] == TaskType.PROJECT or self._is_child_parent_relation(cur_entry, parent_entry) != True:
                 cur_entry_index += 1
                 continue
+            #print(cur_entry[ColumnName.TASK_TYPE])
+            for i in cur_entry.index:
+                if i not in [ColumnName.TASK_NAME, ColumnName.TASK_INDEX, ColumnName.TASK_TYPE]:
+                    continue
+                if _object_is_invalid(cur_entry[i]):
+                    raise Exception(f"{i} is empty")
+                if i == ColumnName.TASK_INDEX and _object_is_invalid(parent_entry[i]):
+                    raise Exception(f"{i} is empty")
+            '''
             cur_entry_node = TeamGanttNode(cur_entry[ColumnName.TASK_NAME],
                                            cur_entry[ColumnName.TASK_INDEX], 
                                            cur_entry[ColumnName.TASK_TYPE], 
@@ -339,11 +362,16 @@ class TeamGanttConverter:
                                            cur_entry[ColumnName.NOTES],
                                            cur_entry[ColumnName.ASSIGNEE],
                                            parent_entry[ColumnName.TASK_INDEX])
+            '''
+            cur_entry_node = TeamGanttNode(task_name = cur_entry[ColumnName.TASK_NAME],
+                                           task_id = cur_entry[ColumnName.TASK_INDEX], 
+                                           task_type = cur_entry[ColumnName.TASK_TYPE], 
+                                           parent_id = parent_entry[ColumnName.TASK_INDEX])
             self._teamgantt_tree.add_node(cur_entry_node)
-            #self._teamgantt_tree.print_tree2()
             if cur_entry[ColumnName.TASK_TYPE] == TaskType.GROUP:
                 self._build_tree(cur_entry_index)
             teamgantt_db.drop(index = cur_entry.name, inplace=True, axis = 0)
+            #self._teamgantt_tree.dump_tree(self._dump_file)
     def process(self):
         self._teamgantt_loader.process_database()
         self._init_tree()
@@ -363,19 +391,18 @@ class TeamGanttConverter:
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-csv_file', dest='csv_file', type=str)
-    arg_parser.add_argument('-out_file', dest='out_file', type=str)
+    #arg_parser.add_argument('-out_file', dest='out_file', type=str)
     arg_parser.add_argument('-dump_file', dest='dump_file', type=str)
     arg_parser.add_argument('-cmd', dest='cmd', type=str)
 
     args = arg_parser.parse_args()
     cmd = args.cmd
     if cmd == 'csv2tree':
-        tmgconverter = TeamGanttConverter(args.csv_file)
+        abs_csv_file_path = str(Path(args.csv_file).resolve())
+        tmgconverter = TeamGanttConverter(abs_csv_file_path)
         tmgconverter.process()
         dump_file = args.dump_file
         tmgconverter.dump_tree(dump_file)
-        out_file = args.out_file
-        tmgconverter.print_tree(out_file)
     elif cmd == 'dump2tree':
         f = open(args.dump_file, "rb")
         team_gantt_tree = pickle.load(f)
