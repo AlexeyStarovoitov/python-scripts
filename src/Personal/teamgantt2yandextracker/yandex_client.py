@@ -181,9 +181,14 @@ class YandexTrackerClient(TrackerClient):
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
+    
     arg_parser.add_argument('-oauth_token', dest='oauth_token', type=str)
     arg_parser.add_argument('-org_id', dest='org_id', type=str)
     arg_parser.add_argument('-lead', dest='lead', type=str)
+    arg_parser.add_argument('-cmd', dest='cmd', type=str, required=False)
+    arg_parser.add_argument('-csv_file', dest='csv_file', type=str, required=False)
+    arg_parser.add_argument('-dump_file', dest='dump_file', type=str, required=False)
+
     args = arg_parser.parse_args()
 
     yandex_tracker = YandexTrackerClient(oath_token=args.oauth_token, org_id=args.org_id, lead_lastname=args.lead)
