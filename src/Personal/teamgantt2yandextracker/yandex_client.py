@@ -137,7 +137,7 @@ class YandexTrackerClient(TrackerClient):
             raise Exception("Wrong task type")
         data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_date, dueDate=end_date, assignee=assignee, project=project_id)
         resp = self.issues.create(params=None, **data)
-        return resp.id
+        return resp.key
     def get_task(self, task_key):
         return self.issues[task_key]
     def get_project(self, project_key):
@@ -202,8 +202,8 @@ if __name__ == '__main__':
     project_params["project_name"] = "Fake Project" 
     project_params["description"] = "Test of Yandex Tracker"
     project_params["queues"] = queues[0].key
-    (project_key, project_id) = yandex_tracker.create_project(**project_params)
-    yandex_tracker.delete_project(project_id)
+    #(project_key, project_id) = yandex_tracker.create_project(**project_params)
+    #yandex_tracker.delete_project(project_id)
     
     #queue methods check
     users = list(yandex_tracker.users.get_all())
@@ -264,7 +264,7 @@ if __name__ == '__main__':
     yandex_tracker.create_queue(**queue_params)
     yandex_tracker.delete_queue(queue_params["key"])
     '''
-    
+    project_key = "Fake Project" 
     # task methods check
     task_params = {}
     task_dates = []
@@ -277,8 +277,13 @@ if __name__ == '__main__':
     task_params["project_id"] = project_key
     task_params["start_date"] = task_dates[0].isoformat()
     task_params["end_date"] = task_dates[1].isoformat()
-    yandex_tracker.create_task(**task_params)
+    #task_key_1 = yandex_tracker.create_task(**task_params)
+    task_params["task_name"]="Super Dummy Task"
+    #task_key_2 = yandex_tracker.create_task(**task_params)
     #yandex_tracker.delete_task("MYLIFE-44")
-    #yandex_tracker.link_tasks("MYLIFE-45", "MYLIFE-46", TaskRelationType.PARENT_TASK_RELATION_TYPE)
-    #yandex_tracker.unlink_tasks("MYLIFE-45", "MYLIFE-46")
+    task_key_1 = "MYLIFE-327"
+    task_key_2 = "MYLIFE-326"
+    yandex_tracker.unlink_tasks(task_key_1, task_key_2)
+    yandex_tracker.link_tasks(task_key_1, task_key_2, TaskRelationType.PARENT_TASK_RELATION_TYPE)
+    #yandex_tracker.unlink_tasks(task_key_1, task_key_2)
 
