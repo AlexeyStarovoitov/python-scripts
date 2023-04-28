@@ -123,7 +123,7 @@ class YandexTrackerClient(TrackerClient):
             return task_type_pattern_map[task_type_enum]
         else:
             return None
-    def _get_task_type_key(self, task_type_enum):
+    def get_task_type_key(self, task_type_enum):
         task_type_patterns = self._get_task_type_patterns(task_type_enum)
         for issue_type in self.issue_types:
             for pattern in task_type_patterns:
@@ -132,7 +132,7 @@ class YandexTrackerClient(TrackerClient):
         else:
             return None
     def create_task(self, task_name, project_id, task_type_enum, queue_name, notes, start_date=None, end_date=None, assignee=None):
-        task_type = self._get_task_type_key(task_type_enum)
+        task_type = self.get_task_type_key(task_type_enum)
         if task_type == None:
             raise Exception("Wrong task type")
         data = dict(summary=task_name, type=task_type, queue=queue_name, description=notes, start=start_date, dueDate=end_date, assignee=assignee, project=project_id)

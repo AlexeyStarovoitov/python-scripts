@@ -249,6 +249,8 @@ class TeamganttTree:
                 #print(f"found parent node: {parent_node.get_name()}")
                 parent_node.add_child(node)
                 pass
+    def find_node(self, node_id):
+        return self._root.find_child(node_id)
     def remove_node(self, node_id):
         node = self._root.find_child(node_id)
         if node == None:
