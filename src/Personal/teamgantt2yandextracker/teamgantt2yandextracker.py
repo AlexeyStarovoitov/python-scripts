@@ -84,10 +84,10 @@ class Teamgantt2YandexTrackerConverter:
                 if  parent_type == TaskType.GROUP:
                     self.tracker.link_tasks(parent_key, node_task_key, TaskRelationType.PARENT_TASK_RELATION_TYPE)
         
-            node_children = node.get_children()
-            if len(node_children) != 0:
-                for child in node_children:
-                    self._convert(child, node_task_key, node_task_type)
+        node_children = node.get_children()
+        if len(node_children) != 0:
+            for child in node_children:
+                self._convert(child, node_task_key, node_task_type)
     def process(self):
         tree_root = self._tg_tree.get_root_node()
         self._convert(tree_root, None, None)
