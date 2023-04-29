@@ -70,7 +70,8 @@ class Teamgantt2YandexTrackerConverter:
                 (self._project_key, self.project_id) = project_params
             node_task_key = self._project_key
         elif node_task_type == TaskType.TASK or node_task_type == TaskType.GROUP:
-            node_task_key = self._task_is_already_in_project(node)
+            #node_task_key = self._task_is_already_in_project(node)
+            node_task_key = None
             if node_task_key == None:
                 dates = Teamgantt2YandexTrackerConverter._get_dates(node)
                 task_type_enum = YandexTaskType.EPIC_TASK_TYPE if parent_type == TaskType.PROJECT else YandexTaskType.SIMPLE_TASK_TYPE
