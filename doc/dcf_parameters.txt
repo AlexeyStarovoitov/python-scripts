@@ -1,0 +1,52 @@
+Расчет стоимости акций по DCF
+
+
+
+Input:
+
+- Legend depth (number of years prior to current point).
+- Forecast. 
+
+- EV price:
+1. Market Capitalization.
+2. Total Debt.
+3. Cash and cash equivalents.
+4. Minority Interest.
+
+- WACC/CAPM:
+
+1. Tax Rate.
+2. Market Capitalization.
+3. Total Debt.
+4. Rf: key rate.
+5. Rm: expected market return.
+6. Country risk premium.
+7. Interest expences.
+
+- FCF forecast:
+
+1. Revenue.
+2. Tax Rate.
+3. Interest expences.
+4. Amortization.
+5. Capex.
+6. Net working capital parameters:
+
+- Fair price/ Terminal Price calculation.
+
+Dataset Source:
+https://financemarker.ru/stocks/
+https://www.gurufocus.com/global-market-valuation.php?country=RUS
+https://aswathdamodaran.blogspot.com/2022/07/country-risk-2022-mid-year-update.html
+https://www.moex.com/ru/forts/coefficients-values.aspx
+
+
+Calculation route:
+
+1. Exctract data from csv (Pandas).
+https://realpython.com/pandas-python-explore-dataset/
+https://mlcourse.ai/book/topic01/topic01_pandas_data_analysis.html
+2. Actual calculation. (Numpy)
+https://realpython.com/numpy-tutorial/
+3. Visualization. 
+https://realpython.com/python-matplotlib-guide/
