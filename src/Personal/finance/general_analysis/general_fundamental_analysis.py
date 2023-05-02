@@ -9,6 +9,7 @@ class ColumnName(Enum):
     CAPITALIZATION=2
     P_E=3
     P_BV=4
+    P_S=14
     P_FCF=5
     EV_EBIT=6
     EV_S=7
@@ -16,7 +17,7 @@ class ColumnName(Enum):
     COM_ANALYSIS_PE=9
     COM_ANALYSIS_P_FCF=10
     COM_ANALYSIS_EV_EBIT=11
-    COM_ANALYYSIS_P_S=12
+    COM_ANALYSIS_P_S=12
     NET_ASSET_ANALYSIS=13
     
 class ColumnNameMapperColName(Enum):
@@ -32,16 +33,18 @@ class ColumnNameMapper:
                      [ColumnName.P_E, ['^p/e[a-z]*[1-9]*'], 'p_e'],
                      [ColumnName.P_BV, ['^p/bv[a-z]*[1-9]*'], 'p_bv'],
                      [ColumnName.P_FCF, ['^p/fcf[a-z]*[1-9]*'], 'p_fcf'],
+                     [ColumnName.P_S, ['^p/s[a-z]*[1-9]*'], 'p_s'],
                      [ColumnName.EV_EBIT, ['^ev/ebit[a-z]*[1-9]*'], 'ev_ebit'],
                      [ColumnName.EV_S, ['^ev/s[a-z]*[1-9]*'], 'ev_s'],
                      [ColumnName.ROE, ['^roe[a-z]*[1-9]*'], 'roe'],
                      [ColumnName.COM_ANALYSIS_PE, [], 'comp_analysis_pe'],
                      [ColumnName.COM_ANALYSIS_P_FCF, [], 'comp_analysis_p_fcf'],
                      [ColumnName.COM_ANALYSIS_EV_EBIT, [], 'comp_analysis_ev_ebit'],
-                     [ColumnName.COM_ANALYYSIS_P_S, [], 'comp_analysis_ps'],
+                     [ColumnName.COM_ANALYSIS_P_S, [], 'comp_analysis_ps'],
                      [ColumnName.NET_ASSET_ANALYSIS, [], 'net_asset_analysis']
                      
         ]
+        
         self._map_data = pd.DataFrame(data = np.array(col_data), columns = [ColumnNameMapperColName.COLUMN_ENUM, 
                                                                             ColumnNameMapperColName.COLUMN_TEMPLATE, 
                                                                             ColumnNameMapperColName.COLUMN_ADDUCED_NAME])
@@ -59,6 +62,9 @@ class ColumnNameMapper:
                 return cur_name[ColumnNameMapperColName.COLUMN_ENUM]
         else:
             return None
+    def map_columns(self, columns):
+        map_columns = [self.map_column(column) for column in columns]
+        return map_columns
     def enum2strconvert(self, column_enum):
         column_entry = self._map_data[self._map_data[ColumnNameMapperColName.COLUMN_ENUM]==column_enum]
         if column_entry:
@@ -67,81 +73,88 @@ class ColumnNameMapper:
         
 
 class GeneralFundamentalAnalysis:
-    columns_name_map = ['Название', 'P/E', 'EV/EBIT', 'P/BV', 'P/S', 'P/FCF', 'ROE']
-    tol = 0.05
     p_bv = 1.5
     def __init__(self, csv_db, out_file_path=None):
         self._db = pd.read_csv(csv_db)
-        self._out = open(out_file_path, "w") if out_file_path else None
-        if self._out:
-            self._out.write(f'Initial data:\n{self._db}\n\n')
-    def _map_columns(self):
-        pass
-    def _preprocess(self):
-        cols = list(map(lambda i: i, filter(lambda u: u not in self.multi_cols_names, self._db.columns)))
-        self._db.drop(cols, inplace=True, axis=1)
-    def _calculate_via_comparative_pe_analysis(self):
-        db_pe = self._db.copy(deep=True)
-        db_pe.drop(['P/BV', 'P/S'], inplace=True, axis=1)
-        db_pe = db_pe[db_pe['P/E'] > 0]
-        means = db_pe.mean()
-        db_pe['yield(comp_analysis_p_e)'] = (means['P/E']-db_pe['P/E'])/means['P/E']*100
-        db_pe['yield(comp_analysis_ev)'] = (means['EV/EBIT']-db_pe['EV/EBIT'])/means['EV/EBIT']*100
-        db_pe= db_pe[(db_pe['P/E'] > 0) & 
-                (db_pe['P/E'] < means['P/E']) & 
-                (db_pe['EV/EBIT'] > 0) &
-                (db_pe['EV/EBIT'] < means['EV/EBIT']) & 
-                (db_pe['EV/EBIT'] < db_pe['P/E'])] #& 
-                #(db_pe['ROE'] > means['ROE'])]
-        return db_pe
-    def _calculate_via_comparative_p_fcf_analysis(self):
-        db_p_fcf = self._db.copy(deep=True)
-        db_p_fcf.drop(['P/BV', 'P/S', 'P/E', 'ROE'], inplace=True, axis=1)
-        db_p_fcf = db_p_fcf[db_p_fcf['P/FCF'] > 0]
-        means = db_p_fcf.mean()
-        db_p_fcf['yield(comp_analysis_p_fcf)'] = (means['P/FCF']-db_p_fcf['P/FCF'])/means['P/FCF']*100
-        db_p_fcf = db_p_fcf[(db_p_fcf['P/FCF'] < means['P/FCF'])]
-        return db_p_fcf
-    def _calculate_via_comparative_ps_analysis(self):
-        db_ps = self._db.copy(deep=True)
-        db_ps.drop(['P/BV', 'EV/EBIT', 'ROE'], inplace=True, axis=1)
-        means = db_ps.mean()
-        db_ps = db_ps[(db_ps['P/S'] < means['P/S'])]
-        db_ps['yield(comp_analysis_p_s)'] = (means['P/S']-db_ps['P/S'])/means['P/S']*100
-        return db_ps
-    def _calculate_via_net_assets(self):
-        db_bv = self._db.copy(deep=True)
-        db_bv.drop(['P/E', 'EV/EBIT', 'ROE', 'P/S'], inplace=True, axis=1)
-        means = db_bv.mean()
-        db_bv = db_bv[(db_bv['P/BV'] < self.p_bv)]
-        p_bv_data = [self.p_bv]*len(db_bv)
-        p_bv_column = pd.Series(data=p_bv_data,index=db_bv.index)
-        db_bv['yield(net_assets_classic)'] = (p_bv_column-db_bv['P/BV'])/p_bv_column*100
-        return db_bv
-    def process(self):
+        self._column_mapper = ColumnNameMapper()
+        self._out_file = out_file_path
         self._preprocess()
-        db_pe = self._calculate_via_comparative_pe_analysis()
-        db_ps = self._calculate_via_comparative_ps_analysis()
-        db_p_fcf = self._calculate_via_comparative_p_fcf_analysis()
-        db_bv = self._calculate_via_net_assets()
-        db_aggr_data = list(map(lambda i: i, 
-                                filter(lambda u: u in list(db_pe['Название'].values) and 
-                                       u in list(db_p_fcf['Название'].values) and 
-                                       u in list(db_ps['Название'].values) and 
-                                       u in list(db_bv['Название'].values), list(self._db['Название'].values)))) 
-        db_aggr_data = '\n'.join(db_aggr_data)
-        self._out.write(f'Results:\nComparative analysis via P/E(EV/EBIT)\n{db_pe}\n\n')
-        self._out.write(f'Results:\nComparative analysis via P/FCF\n{db_p_fcf}\n\n')
-        self._out.write(f'Results:\nComparative analysis via P/S\n{db_ps}\n\n')
-        self._out.write(f'Results:\nComparative analysis via net assets\n{db_bv}\n\n')
-        self._out.write(f'Final results:\n{db_aggr_data}\n\n')
-        return (db_pe, db_p_fcf, db_ps, db_bv, db_aggr_data)
+    def _map_columns(self):
+        db = self._db
+        #rename columns
+        columns = list(db.columns)
+        map_columns = self._column_mapper.map_columns(columns)
+        column_rename_dict = dict(zip(columns, map_columns))
+        db.rename(columns=column_rename_dict)
+    def _preprocess(self):
+        self._map_columns()
+        db = self._db
+        #add series
+        result_columns = [ColumnName.COM_ANALYSIS_PE, ColumnName.COM_ANALYSIS_EV_EBIT, 
+                          ColumnName.COM_ANALYSIS_P_FCF, ColumnName.COM_ANALYSIS_P_S,
+                          ColumnName.NET_ASSET_ANALYSIS]
+        for res_column in result_columns:
+            db[res_column] = pd.Series([0]*len(db),index=db.index, dtype=np.float32)
+        
+    @staticmethod
+    def _map_proccessed_db(db, pr_db, proccess_column_name):
+        for i, name in zip(pr_db[ColumnName.NAME].index, pr_db[ColumnName.NAME].to_numpy()):
+            entry_index = db[ColumnName.NAME][db[ColumnName.NAME]==name].index[0]
+            db.loc[entry_index, proccess_column_name] = pr_db.loc[i, proccess_column_name]
     
+    def _calculate_via_general_analysis(self, parameter_column_name, result_column_name):
+        db = self._db
+        db_pr = db[db[parameter_column_name] > 0]
+        means = db_pr.mean()
+        db_pr[result_column_name] = (means[parameter_column_name]-db_pr[parameter_column_name])/means[parameter_column_name]*100
+        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, result_column_name)
+    def _calculate_via_comparative_pe_analysis(self):
+        self._calculate_via_general_analysis(ColumnName.P_E, ColumnName.COM_ANALYSIS_PE)
+        '''
+        db_pe= db_pe[(db_pe[ColumnName.P_E] > 0) & 
+                (db_pe[ColumnName.P_E] < means[ColumnName.P_E]) & 
+                (db_pe[ColumnName.COM_ANALYSIS_EV_EBIT] > 0) &
+                (db_pe[ColumnName.COM_ANALYSIS_EV_EBIT] < means[ColumnName.COM_ANALYSIS_EV_EBIT]) & 
+                (db_pe[ColumnName.COM_ANALYSIS_EV_EBIT] < db_pe[ColumnName.P_E])] #& 
+                #(db_pe[ColumnName.ROE] > means[ColumnName.ROE])]
+        '''
+    def _calculate_via_comparative_p_fcf_analysis(self):
+        self._calculate_via_general_analysis(ColumnName.P_FCF, ColumnName.COM_ANALYSIS_P_FCF)
+    def _calculate_via_comparative_ps_analysis(self):
+        self._calculate_via_general_analysis(ColumnName.P_S, ColumnName.COM_ANALYSIS_P_S)
+    def _calculate_via_comparative_ev_ebit(self):
+        db = self._db
+        db_pr = db[db[ColumnName.EV_EBIT] > 0]
+        s = db_pr[ColumnName.CAPITALIZATION]/db_pr[ColumnName.P_S]
+        ev = db[ColumnName.EV_S]*s
+        ebit = ev/db[ColumnName.EV_EBIT]
+        debt = ev - db_pr[ColumnName.CAPITALIZATION]
+        means = db_pr.mean()
+        fair_price =  means[ColumnName.EV_EBIT]*ebit-debt
+        db_pr[ColumnName.COM_ANALYSIS_EV_EBIT] = (fair_price-db_pr[ColumnName.CAPITALIZATION])/fair_price*100
+        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.COM_ANALYSIS_EV_EBIT)
+    def _calculate_via_net_assets(self):
+        db = self._db
+        db_pr = db[db[ColumnName.P_BV] > 0]
+        db_pr[ColumnName.NET_ASSET_ANALYSIS] = (self.p_bv-db_pr[ColumnName.P_BV])/self.p_bv*100
+        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.NET_ASSET_ANALYSIS)
+    def process(self):
+        self._calculate_via_comparative_pe_analysis()
+        self._calculate_via_comparative_ev_ebit()
+        self._calculate_via_comparative_p_fcf_analysis()
+        self._calculate_via_comparative_ps_analysis()
+        self._calculate_via_net_assets()
+        
+        if self._out_file:
+            self._db.to_excel(self._out_file)
+        else:
+            print(f"Results:\n{self._db}")
+        
 if __name__=="__main__":
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("-csv_db", dest="csv_db", type=str)
     arg_parser.add_argument("-out_file", dest="out_file", type=str)
     args = arg_parser.parse_args()
     gen_analysis = GeneralFundamentalAnalysis(args.csv_db, args.out_file)
-    miltu_av_dict = gen_analysis.process()
-    print(miltu_av_dict)
+    gen_analysis.process()
+    
