@@ -94,6 +94,16 @@ class Teamgantt2YandexTrackerConverter:
         self._convert(tree_root, None, None)
 
 
+'''
+                        "-cmd", "csv2tree",
+                        "-oauth_token", "", // generated in yandex tracker
+                        "-org_id", "", // taken from yandex tracker organization configs
+                        "-lead", "starovoitov-rep",
+                        "-csv_file", "H:\\Личное\\Миссия\\Personal_plan.csv",
+                        "-dump_file", "D:\\starovoitov\\Others\\Projects\\python-scripts\\out\\dump_tree.json",
+'''
+
+
 if __name__ == '__main__':
     
     arg_parser = argparse.ArgumentParser()

@@ -14,17 +14,12 @@
             "cwd": "${workspaceFolder}",
             "args" : 
                     [
+                        "-csv_db", "C:\\Users\\Алексей\\python-scripts\\data\\stocks_financemarker.csv",
+                        "-out_file", "C:\\Users\\Алексей\\python-scripts\\out\\stock_analysis.xlsx"
                         /*
-                        "-cmd", "csv2tree",
-                        "-oauth_token", "",
-                        "-org_id", "",
-                        "-lead", "starovoitov-rep",
-                        "-csv_file", "H:\\Личное\\Миссия\\Personal_plan.csv",
-                        "-dump_file", "D:\\starovoitov\\Others\\Projects\\python-scripts\\out\\dump_tree.json",
-                        */
                         "-csv_db", "D:\\starovoitov\\Others\\Projects\\python-scripts\\data\\stocks_financemarker.csv",
                         "-out_file", "D:\\starovoitov\\Others\\Projects\\python-scripts\\out\\stock_analysis.xlsx"
-
+                        */
                     ]
         }
     ]

@@ -3,6 +3,10 @@ import numpy as np
 import argparse
 import re
 from enum import Enum
+from openpyxl import workbook, worksheet
+from openpyxl.reader import excel
+from openpyxl.worksheet import dimensions
+
 
 class ColumnName(Enum):
     NAME=1
@@ -19,33 +23,39 @@ class ColumnName(Enum):
     COM_ANALYSIS_EV_EBIT=11
     COM_ANALYSIS_P_S=12
     NET_ASSET_ANALYSIS=13
+    D_E=15
     
 class ColumnNameMapperColName(Enum):
     COLUMN_ENUM=1
     COLUMN_TEMPLATE=2
     COLUMN_ADDUCED_NAME=3
 
+class ColumnNameOperation(Enum):
+    COLUMN_MAP=1
+    COLUMN_CONVERT=2
+
 class ColumnNameMapper:
    
     def __init__(self):
         col_data = [ [ColumnName.NAME, ['^название[a-z]*[1-9]*', '^name[a-z]*[1-9]*'], 'name'],
-                     [ColumnName.CAPITALIZATION, ['^капитализация[a-z]*[1-9]*'], 'capitalization'],
-                     [ColumnName.P_E, ['^p/e[a-z]*[1-9]*'], 'p_e'],
-                     [ColumnName.P_BV, ['^p/bv[a-z]*[1-9]*'], 'p_bv'],
-                     [ColumnName.P_FCF, ['^p/fcf[a-z]*[1-9]*'], 'p_fcf'],
-                     [ColumnName.P_S, ['^p/s[a-z]*[1-9]*'], 'p_s'],
-                     [ColumnName.EV_EBIT, ['^ev/ebit[a-z]*[1-9]*'], 'ev_ebit'],
-                     [ColumnName.EV_S, ['^ev/s[a-z]*[1-9]*'], 'ev_s'],
-                     [ColumnName.ROE, ['^roe[a-z]*[1-9]*'], 'roe'],
-                     [ColumnName.COM_ANALYSIS_PE, [], 'comp_analysis_pe'],
-                     [ColumnName.COM_ANALYSIS_P_FCF, [], 'comp_analysis_p_fcf'],
-                     [ColumnName.COM_ANALYSIS_EV_EBIT, [], 'comp_analysis_ev_ebit'],
-                     [ColumnName.COM_ANALYSIS_P_S, [], 'comp_analysis_ps'],
-                     [ColumnName.NET_ASSET_ANALYSIS, [], 'net_asset_analysis']
+                     [ColumnName.CAPITALIZATION, ['^капитализация[a-z]*[1-9]*'], 'cap'],
+                     [ColumnName.P_E, ['^p/e[a-z]*[1-9]*'], 'P/E'],
+                     [ColumnName.P_BV, ['^p/bv[a-z]*[1-9]*'], 'P/BV'],
+                     [ColumnName.P_FCF, ['^p/fcf[a-z]*[1-9]*'], 'P/FCF'],
+                     [ColumnName.P_S, ['^p/s[a-z]*[1-9]*'], 'P/S'],
+                     [ColumnName.EV_EBIT, ['^ev/ebit[a-z]*[1-9]*'], 'EV/EBIT'],
+                     [ColumnName.EV_S, ['^ev/s[a-z]*[1-9]*'], 'EV/S'],
+                     [ColumnName.D_E, ['^debt/equity[a-z]*[1-9]*'], 'D/E'],
+                     [ColumnName.ROE, ['^roe[a-z]*[1-9]*'], 'ROE'],
+                     [ColumnName.COM_ANALYSIS_PE, [], 'P/E(comp)'],
+                     [ColumnName.COM_ANALYSIS_P_FCF, [], 'P/FCF(comp)'],
+                     [ColumnName.COM_ANALYSIS_EV_EBIT, [], 'EV/EBIT(comp)'],
+                     [ColumnName.COM_ANALYSIS_P_S, [], 'P/S(comp)'],
+                     [ColumnName.NET_ASSET_ANALYSIS, [], 'P/BV (comp)']
                      
         ]
         
-        self._map_data = pd.DataFrame(data = np.array(col_data), columns = [ColumnNameMapperColName.COLUMN_ENUM, 
+        self._map_data = pd.DataFrame(data = col_data, columns = [ColumnNameMapperColName.COLUMN_ENUM, 
                                                                             ColumnNameMapperColName.COLUMN_TEMPLATE, 
                                                                             ColumnNameMapperColName.COLUMN_ADDUCED_NAME])
     @staticmethod
@@ -66,26 +76,38 @@ class ColumnNameMapper:
         map_columns = [self.map_column(column) for column in columns]
         return map_columns
     def enum2strconvert(self, column_enum):
-        column_entry = self._map_data[self._map_data[ColumnNameMapperColName.COLUMN_ENUM]==column_enum]
-        if column_entry:
+        column_entry = self._map_data[self._map_data[ColumnNameMapperColName.COLUMN_ENUM]==column_enum].iloc[0,:]
+        if not column_entry.empty:
             return column_entry[ColumnNameMapperColName.COLUMN_ADDUCED_NAME]
         return None
+    def enum2strconvert_columns(self, column_enums):
+        converted_columns = [self.enum2strconvert(column) for column in column_enums]
+        return converted_columns
         
 
 class GeneralFundamentalAnalysis:
     p_bv = 1.5
-    def __init__(self, csv_db, out_file_path=None):
+    column_width = 15
+    def __init__(self, csv_db):
+        pd.set_option("display.precision", 3)
+        np.set_printoptions(precision=3)
         self._db = pd.read_csv(csv_db)
         self._column_mapper = ColumnNameMapper()
-        self._out_file = out_file_path
         self._preprocess()
-    def _map_columns(self):
+    def _map_column_general_operation(self, op_enum):
         db = self._db
-        #rename columns
         columns = list(db.columns)
-        map_columns = self._column_mapper.map_columns(columns)
+        if op_enum == ColumnNameOperation.COLUMN_MAP:
+            map_columns = self._column_mapper.map_columns(columns)
+        elif op_enum == ColumnNameOperation.COLUMN_CONVERT:
+            map_columns = self._column_mapper.enum2strconvert_columns(columns)
         column_rename_dict = dict(zip(columns, map_columns))
-        db.rename(columns=column_rename_dict)
+        db.rename(columns=column_rename_dict, inplace=True)
+        
+    def _map_columns(self):
+       self._map_column_general_operation(ColumnNameOperation.COLUMN_MAP)
+    def _enum2str_convert_columns(self):
+        self._map_column_general_operation(ColumnNameOperation.COLUMN_CONVERT)
     def _preprocess(self):
         self._map_columns()
         db = self._db
@@ -138,6 +160,23 @@ class GeneralFundamentalAnalysis:
         db_pr = db[db[ColumnName.P_BV] > 0]
         db_pr[ColumnName.NET_ASSET_ANALYSIS] = (self.p_bv-db_pr[ColumnName.P_BV])/self.p_bv*100
         GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.NET_ASSET_ANALYSIS)
+    def dump_to_excel(self, out_file_path):
+        self._enum2str_convert_columns()
+        writer = pd.ExcelWriter(path=out_file_path, engine='openpyxl')
+        self._db.to_excel(excel_writer=writer, float_format="%.2f")
+        writer.save()
+
+        wb = excel.load_workbook(out_file_path)
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            
+            for row in ws.iter_rows(min_col=1, max_col=ws.max_column, max_row=1):
+                for col in row:
+                    ws.column_dimensions[col.column_letter] = dimensions.ColumnDimension(ws, index=col.column_letter, width=self.column_width)
+
+        wb.save(out_file_path)
+        
+        
     def process(self):
         self._calculate_via_comparative_pe_analysis()
         self._calculate_via_comparative_ev_ebit()
@@ -145,16 +184,14 @@ class GeneralFundamentalAnalysis:
         self._calculate_via_comparative_ps_analysis()
         self._calculate_via_net_assets()
         
-        if self._out_file:
-            self._db.to_excel(self._out_file)
-        else:
-            print(f"Results:\n{self._db}")
         
 if __name__=="__main__":
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument("-csv_db", dest="csv_db", type=str)
     arg_parser.add_argument("-out_file", dest="out_file", type=str)
     args = arg_parser.parse_args()
-    gen_analysis = GeneralFundamentalAnalysis(args.csv_db, args.out_file)
+    gen_analysis = GeneralFundamentalAnalysis(args.csv_db)
     gen_analysis.process()
+    gen_analysis.dump_to_excel(args.out_file)
+    pass
     
