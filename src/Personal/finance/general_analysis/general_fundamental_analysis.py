@@ -140,6 +140,7 @@ class GeneralFundamentalAnalysis:
     def _preprocess(self):
         self._map_columns()
         self._map_analysis_type()
+        self._db.fillna(value = 0, inplace=True)
     @staticmethod
     def _map_proccessed_db(db, pr_db, proccess_column_name):
         for i, name in zip(pr_db[ColumnName.NAME].index, pr_db[ColumnName.NAME].to_numpy()):
@@ -151,6 +152,8 @@ class GeneralFundamentalAnalysis:
         if parameter_column_name not in db.columns:
             return
         db_pr = db[db[parameter_column_name] > 0]
+        if db_pr.empty:
+            return
         means = db_pr.mean()
         db_pr[result_column_name] = (means[parameter_column_name]-db_pr[parameter_column_name])/means[parameter_column_name]*100
         GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, result_column_name)
@@ -174,6 +177,8 @@ class GeneralFundamentalAnalysis:
             if col_name not in db.columns:
                 return
         db_pr = db[db[ColumnName.EV_EBIT] > 0]
+        if db_pr.empty:
+            return
         s = db_pr[ColumnName.CAPITALIZATION]/db_pr[ColumnName.P_S]
         ev = db[ColumnName.EV_S]*s
         ebit = ev/db[ColumnName.EV_EBIT]
@@ -190,6 +195,7 @@ class GeneralFundamentalAnalysis:
         db_pr = db[db[ColumnName.DIV_YIELD] > 0]
         means = db_pr.mean()
         db_pr = db_pr[db_pr[ColumnName.DIV_YIELD] > means[ColumnName.DIV_YIELD]]
+        db_pr[ColumnName.DIV_ANALYSIS] = db_pr[ColumnName.DIV_YIELD]
         GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.DIV_ANALYSIS)
     def _calculate_via_net_assets(self):
         db = self._db
