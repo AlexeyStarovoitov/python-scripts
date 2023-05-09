@@ -52,6 +52,8 @@ if __name__ == "__main__":
      for res in yndx_tracker.resolutions:
           pass
      for task in yndx_tracker.issues:
+          if not task.deadline:
+               continue 
           deadline = datetime.fromisoformat(task.deadline)
           if now > deadline and task.status.key != closed_status.key:
                task.update(resolution="fixed")
