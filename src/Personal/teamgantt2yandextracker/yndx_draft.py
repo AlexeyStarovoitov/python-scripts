@@ -1,22 +1,8 @@
 from yandex_tracker_client import TrackerClient, exceptions
 from yandex_tracker_client.collections import Issues 
+from datetime import datetime
 import argparse
 
-arg_parser = argparse.ArgumentParser()
-arg_parser.add_argument('-oauth_token', dest='oauth_token', type=str)
-arg_parser.add_argument('-org_id', dest='org_id', type=str)
-arg_parser.add_argument('-csv_file', dest='csv_file', type=str, required=False)
-arg_parser.add_argument('-dump_file', dest='dump_file', type=str, required=False)
-arg_parser.add_argument('-lead', dest='lead', type=str, required=False)
-arg_parser.add_argument('-cmd', dest='cmd', type=str, required=False)
-args = arg_parser.parse_args()
-
-yndx_tracker = TrackerClient(args.oauth_token, args.org_id)
-
-task_keys = ["MYLIFE-851"]
-project_name = "Финансы"
-queue_key = 'PROFESSION'
-queue = yndx_tracker.queues[queue_key]
 
 def find_project(projects, project_name):
      for project in projects:
@@ -25,7 +11,12 @@ def find_project(projects, project_name):
      else:
           return None
 
-project = find_project(yndx_tracker.projects, project_name)
+def find_status(statuses, status_key):
+     for status in statuses:
+          if status.key == status_key:
+               return status
+     else:
+          return None
 
 
 def move_task_with_subtasks_to_queue_project(task, queue_key, project_id):
@@ -41,16 +32,28 @@ def move_task_with_subtasks_to_queue_project(task, queue_key, project_id):
             if link.direction == "outward" and link.type.id == "subtask":
                  move_task_with_subtasks_to_queue_project(link.object, queue_key, project_id)
 
-for task_key in task_keys:
-    issue = yndx_tracker.issues[task_key]
-    move_task_with_subtasks_to_queue_project(issue, queue_key, None)
 
 
-#queue.delete()
 
+if __name__ == "__main__":
 
-print("Projects")
-for project in yndx_tracker.projects:
-    print(project.name)
+     arg_parser = argparse.ArgumentParser()
+     arg_parser.add_argument('-oauth_token', dest='oauth_token', type=str)
+     arg_parser.add_argument('-org_id', dest='org_id', type=str)
+     arg_parser.add_argument('-csv_file', dest='csv_file', type=str, required=False)
+     arg_parser.add_argument('-dump_file', dest='dump_file', type=str, required=False)
+     arg_parser.add_argument('-lead', dest='lead', type=str, required=False)
+     arg_parser.add_argument('-cmd', dest='cmd', type=str, required=False)
+     args = arg_parser.parse_args()
+
+     yndx_tracker = TrackerClient(args.oauth_token, args.org_id)
+     closed_status = find_status(yndx_tracker.statuses, "closed")
+     now = datetime.now()
+     for task in yndx_tracker.issues:
+          deadline = datetime.fromisoformat(task.deadline)
+          if now > deadline and task.status.key != closed_status.key:
+               data = {"status":closed_status.key}
+               task.update(**data)
+               #task.status = closed_status
 
  
