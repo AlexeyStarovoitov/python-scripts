@@ -49,11 +49,15 @@ if __name__ == "__main__":
      yndx_tracker = TrackerClient(args.oauth_token, args.org_id)
      closed_status = find_status(yndx_tracker.statuses, "closed")
      now = datetime.now()
+     for res in yndx_tracker.resolutions:
+          pass
      for task in yndx_tracker.issues:
           deadline = datetime.fromisoformat(task.deadline)
           if now > deadline and task.status.key != closed_status.key:
-               data = {"status":closed_status.key}
-               task.update(**data)
-               #task.status = closed_status
+               task.update(resolution="fixed")
+               task.transitions['close'].execute()
+               #data = {"status":closed_status.key}
+               #task.update(**data)
+               
 
  
