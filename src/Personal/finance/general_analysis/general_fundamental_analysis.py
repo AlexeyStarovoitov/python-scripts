@@ -18,14 +18,17 @@ class ColumnName(Enum):
     EV_EBIT=6
     EV_S=7
     ROE=8
-    COM_ANALYSIS_PE=9
-    COM_ANALYSIS_P_FCF=10
-    COM_ANALYSIS_EV_EBIT=11
-    COM_ANALYSIS_P_S=12
-    NET_ASSET_ANALYSIS=13
+    TARGET_PE=9
+    TARGET_P_FCF=10
+    TARGET_EV_EBIT=11
+    TARGET_P_S=12
+    TARGET_NET_ASSET=13
+    TARGET_DIV=17
+    RES_TARGET=18
     D_E=15
     DIV_YIELD=16
-    DIV_ANALYSIS=17
+    PRICE = 19
+    
     
 class ColumnNameMapperColName(Enum):
     COLUMN_ENUM=1
@@ -60,14 +63,14 @@ class ColumnNameMapper:
                      [ColumnName.D_E, ['^debt/equity[a-z]*[1-9]*'], 'D/E'],
                      [ColumnName.ROE, ['^roe[a-z]*[1-9]*'], 'ROE'],
                      [ColumnName.DIV_YIELD, ['^тек[. ]*дох-ть[a-z]*[1-9]*'], 'Div. yield'],
-                     [ColumnName.COM_ANALYSIS_PE, [], 'P/E(comp), %'],
-                     [ColumnName.COM_ANALYSIS_P_FCF, [], 'P/FCF(comp), %'],
-                     [ColumnName.COM_ANALYSIS_EV_EBIT, [], 'EV/EBIT(comp), %'],
-                     [ColumnName.COM_ANALYSIS_P_S, [], 'P/S(comp), %'],
-                     [ColumnName.NET_ASSET_ANALYSIS, [], 'P/BV (comp), %'],
-                     [ColumnName.DIV_ANALYSIS, [], 'Div. (comp), %']
-                    
-                     
+                     [ColumnName.PRICE, ["^price[a-z]*[1-9]*"], "Price"],
+                     [ColumnName.TARGET_PE, [], 'Target (P/E)'],
+                     [ColumnName.TARGET_P_FCF, [], 'Target (P/FCF)'],
+                     [ColumnName.TARGET_EV_EBIT, [], 'Target (EV/EBIT)'],
+                     [ColumnName.TARGET_P_S, [], 'Target (P/S)'],
+                     [ColumnName.TARGET_NET_ASSET, [], 'Target (P/BV)'],
+                     [ColumnName.TARGET_DIV, [], 'Target (Div.)'],
+                     [ColumnName.RES_TARGET, [], 'Res Target']
         ]
         
         self._map_data = pd.DataFrame(data = col_data, columns = [ColumnNameMapperColName.COLUMN_ENUM, 
@@ -123,23 +126,35 @@ class GeneralFundamentalAnalysis:
        self._map_column_general_operation(ColumnNameOperation.COLUMN_MAP)
     def _enum2str_convert_columns(self):
         self._map_column_general_operation(ColumnNameOperation.COLUMN_CONVERT)
-    def _map_analysis_type(self):
+    def _reorder_columns(self):
         db = self._db
+        columns = list(db.columns)
+        columns.remove(ColumnName.PRICE)
+        columns.insert(len(columns), ColumnName.PRICE)
+        db = db[columns]
+        self._db = db
+    def _add_analysis_columns(self):
+        db = self._db
+        _analysis_columns = []
         analysis_columns_mapper = {
-            ANALYSIS_TYPE.PE_COMP_ANALYSYS_TYPE: ColumnName.COM_ANALYSIS_PE,
-            ANALYSIS_TYPE.EV_EBIT_COM_ANALYSIS_TYPE: ColumnName.COM_ANALYSIS_EV_EBIT,
-            ANALYSIS_TYPE.P_FCF_COMP_ANALYSIS_TYPE: ColumnName.COM_ANALYSIS_P_FCF,
-            ANALYSIS_TYPE.P_S_COM_ANALYSIS_TYPE: ColumnName.COM_ANALYSIS_P_S,
-            ANALYSIS_TYPE.NET_ASSET_ANALYSIS_TYPE: ColumnName.NET_ASSET_ANALYSIS,
-            ANALYSIS_TYPE.DIV_ANALYSIS_TYPE: ColumnName.DIV_ANALYSIS
+            ANALYSIS_TYPE.PE_COMP_ANALYSYS_TYPE: ColumnName.TARGET_PE,
+            ANALYSIS_TYPE.EV_EBIT_COM_ANALYSIS_TYPE: ColumnName.TARGET_EV_EBIT,
+            ANALYSIS_TYPE.P_FCF_COMP_ANALYSIS_TYPE: ColumnName.TARGET_P_FCF,
+            ANALYSIS_TYPE.P_S_COM_ANALYSIS_TYPE: ColumnName.TARGET_P_S,
+            ANALYSIS_TYPE.NET_ASSET_ANALYSIS_TYPE: ColumnName.TARGET_NET_ASSET,
+            ANALYSIS_TYPE.DIV_ANALYSIS_TYPE: ColumnName.TARGET_DIV
         }
         for (anal_mask, anal_col_name) in analysis_columns_mapper.items():
             if self._analysis_type & anal_mask:
                 db[anal_col_name] = pd.Series([0]*len(db),index=db.index, dtype=np.float32)
-            
+                _analysis_columns.append(anal_col_name)
+        
+        db[ColumnName.RES_TARGET] = pd.Series([0]*len(db),index=db.index, dtype=np.float32)
+        self._analysis_columns = _analysis_columns
     def _preprocess(self):
         self._map_columns()
-        self._map_analysis_type()
+        self._reorder_columns()
+        self._add_analysis_columns()
         self._db.fillna(value = 0, inplace=True)
     @staticmethod
     def _map_proccessed_db(db, pr_db, proccess_column_name):
@@ -155,10 +170,13 @@ class GeneralFundamentalAnalysis:
         if db_pr.empty:
             return
         means = db_pr.mean()
-        db_pr[result_column_name] = (means[parameter_column_name]-db_pr[parameter_column_name])/means[parameter_column_name]*100
+        #growth in percent
+        #db_pr[result_column_name] = (means[parameter_column_name]-db_pr[parameter_column_name])/db_pr[parameter_column_name]*100 
+        relative_target = (means[parameter_column_name]-db_pr[parameter_column_name])/db_pr[parameter_column_name]
+        db_pr[result_column_name] = db_pr[ColumnName.PRICE]*(1 + relative_target)
         GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, result_column_name)
     def _calculate_via_comparative_pe_analysis(self):
-        self._calculate_via_general_analysis(ColumnName.P_E, ColumnName.COM_ANALYSIS_PE)
+        self._calculate_via_general_analysis(ColumnName.P_E, ColumnName.TARGET_PE)
         '''
         db_pe= db_pe[(db_pe[ColumnName.P_E] > 0) & 
                 (db_pe[ColumnName.P_E] < means[ColumnName.P_E]) & 
@@ -168,9 +186,9 @@ class GeneralFundamentalAnalysis:
                 #(db_pe[ColumnName.ROE] > means[ColumnName.ROE])]
         '''
     def _calculate_via_comparative_p_fcf_analysis(self):
-        self._calculate_via_general_analysis(ColumnName.P_FCF, ColumnName.COM_ANALYSIS_P_FCF)
+        self._calculate_via_general_analysis(ColumnName.P_FCF, ColumnName.TARGET_P_FCF)
     def _calculate_via_comparative_ps_analysis(self):
-        self._calculate_via_general_analysis(ColumnName.P_S, ColumnName.COM_ANALYSIS_P_S)
+        self._calculate_via_general_analysis(ColumnName.P_S, ColumnName.TARGET_P_S)
     def _calculate_via_comparative_ev_ebit(self):
         db = self._db
         for col_name in [ColumnName.EV_EBIT, ColumnName.EV_S, ColumnName.P_S, ColumnName.CAPITALIZATION]:
@@ -185,8 +203,9 @@ class GeneralFundamentalAnalysis:
         debt = ev - db_pr[ColumnName.CAPITALIZATION]
         means = db_pr.mean()
         fair_price =  means[ColumnName.EV_EBIT]*ebit-debt
-        db_pr[ColumnName.COM_ANALYSIS_EV_EBIT] = (fair_price-db_pr[ColumnName.CAPITALIZATION])/fair_price*100
-        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.COM_ANALYSIS_EV_EBIT)
+        relative_target = (fair_price-db_pr[ColumnName.CAPITALIZATION])/fair_price
+        db_pr[ColumnName.TARGET_EV_EBIT] = db_pr[ColumnName.PRICE]*(1 + relative_target)
+        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.TARGET_EV_EBIT)
     def _calculate_via_div_yeild(self):
         db = self._db
         #db_pr = db[db[ColumnName.DIV_YIELD] > self._div_threashold]
@@ -195,13 +214,24 @@ class GeneralFundamentalAnalysis:
         db_pr = db[db[ColumnName.DIV_YIELD] > 0]
         means = db_pr.mean()
         db_pr = db_pr[db_pr[ColumnName.DIV_YIELD] > means[ColumnName.DIV_YIELD]]
-        db_pr[ColumnName.DIV_ANALYSIS] = db_pr[ColumnName.DIV_YIELD]
-        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.DIV_ANALYSIS)
+        db_pr[ColumnName.TARGET_DIV] = db_pr[ColumnName.PRICE]*(1 + db_pr[ColumnName.DIV_YIELD]/100)
+        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.TARGET_DIV)
+    def _calcultate_result_price(self):
+        db = self._db
+        analysis_columns = self._analysis_columns
+        for i in db.index:
+            cur_entry = db.loc[i,:]
+            target_prices = cur_entry[analysis_columns]
+            target_prices = target_prices[target_prices > 0]
+            db.loc[i,ColumnName.RES_TARGET] = target_prices.mean() if not target_prices.empty else 0
+            #cur_entry.loc[ColumnName.RES_TARGET] = target_prices.mean()
+            pass
+        pass
     def _calculate_via_net_assets(self):
         db = self._db
         db_pr = db[db[ColumnName.P_BV] > 0]
         db_pr[ColumnName.NET_ASSET_ANALYSIS] = (self._p_bv-db_pr[ColumnName.P_BV])/self._p_bv*100
-        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.NET_ASSET_ANALYSIS)
+        GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.TARGET_NET_ASSET)
     def dump_to_excel(self, out_file_path):
         self._enum2str_convert_columns()
         writer = pd.ExcelWriter(path=out_file_path, engine='openpyxl')
@@ -229,6 +259,7 @@ class GeneralFundamentalAnalysis:
         for (anal_mask, anal_function) in analysis_function_mapper.items():
             if self._analysis_type & anal_mask:
                 anal_function()
+        self._calcultate_result_price()
         
         '''
         self._calculate_via_comparative_pe_analysis()
