@@ -25,6 +25,7 @@ class ColumnName(Enum):
     TARGET_NET_ASSET=13
     TARGET_DIV=17
     RES_TARGET=18
+    POTENTIAL=20
     D_E=15
     DIV_YIELD=16
     PRICE = 19
@@ -70,7 +71,8 @@ class ColumnNameMapper:
                      [ColumnName.TARGET_P_S, [], 'Target (P/S)'],
                      [ColumnName.TARGET_NET_ASSET, [], 'Target (P/BV)'],
                      [ColumnName.TARGET_DIV, [], 'Target (Div.)'],
-                     [ColumnName.RES_TARGET, [], 'Res Target']
+                     [ColumnName.RES_TARGET, [], 'Res Target'],
+                     [ColumnName.POTENTIAL, [], 'Potential, %']
         ]
         
         self._map_data = pd.DataFrame(data = col_data, columns = [ColumnNameMapperColName.COLUMN_ENUM, 
@@ -150,6 +152,7 @@ class GeneralFundamentalAnalysis:
                 _analysis_columns.append(anal_col_name)
         
         db[ColumnName.RES_TARGET] = pd.Series([0]*len(db),index=db.index, dtype=np.float32)
+        db[ColumnName.POTENTIAL] = pd.Series([0]*len(db),index=db.index, dtype=np.float32)
         self._analysis_columns = _analysis_columns
     def _preprocess(self):
         self._map_columns()
@@ -222,8 +225,9 @@ class GeneralFundamentalAnalysis:
         for i in db.index:
             cur_entry = db.loc[i,:]
             target_prices = cur_entry[analysis_columns]
-            target_prices = target_prices[target_prices > 0]
+            #target_prices = target_prices[target_prices > 0]
             db.loc[i,ColumnName.RES_TARGET] = target_prices.mean() if not target_prices.empty else 0
+            db.loc[i,ColumnName.POTENTIAL] = (db.loc[i,ColumnName.RES_TARGET] - db.loc[i,ColumnName.PRICE])/db.loc[i,ColumnName.PRICE]*100
             #cur_entry.loc[ColumnName.RES_TARGET] = target_prices.mean()
             pass
         pass
