@@ -18,10 +18,9 @@
                         "-csv_db", "C:\\Users\\Алексей\\python-scripts\\data\\stocks_financemarker.csv",
                         "-out_file", "C:\\Users\\Алексей\\python-scripts\\out\\stock_analysis.xlsx"
                         */
-                        "-csv_db", "D:\\starovoitov\\Others\\Projects\\python-scripts\\data\\stocks_financemarker_china_it.csv",
-                        "-out_file", "D:\\starovoitov\\Others\\Projects\\python-scripts\\out\\stocks_financemarker_china_it_stock_analysis2.xlsx",
+                        "-csv_db", "D:\\starovoitov\\Others\\Projects\\python-scripts\\data\\stocks_financemarker_china_semiconductors.csv",
+                        "-out_file", "D:\\starovoitov\\Others\\Projects\\python-scripts\\out\\stocks_financemarker_china_semiconductors_analysis.xlsx",
                         "-analysis_type", "PE_COMP_ANALYSYS_TYPE|EV_EBIT_COM_ANALYSIS_TYPE|P_FCF_COMP_ANALYSIS_TYPE"
-                        
                     ]
         }
     ]

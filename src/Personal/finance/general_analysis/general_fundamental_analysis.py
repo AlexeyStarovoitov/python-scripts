@@ -234,7 +234,7 @@ class GeneralFundamentalAnalysis:
     def _calculate_via_net_assets(self):
         db = self._db
         db_pr = db[db[ColumnName.P_BV] > 0]
-        db_pr[ColumnName.NET_ASSET_ANALYSIS] = (self._p_bv-db_pr[ColumnName.P_BV])/self._p_bv*100
+        db_pr[ColumnName.TARGET_NET_ASSET] = db_pr[ColumnName.PRICE]*(1 + (self._p_bv-db_pr[ColumnName.P_BV])/db_pr[ColumnName.P_BV])
         GeneralFundamentalAnalysis._map_proccessed_db(db, db_pr, ColumnName.TARGET_NET_ASSET)
     def dump_to_excel(self, out_file_path):
         self._enum2str_convert_columns()
