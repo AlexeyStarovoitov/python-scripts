@@ -13,9 +13,9 @@ import tradingView
 '''
 
 class StockPriceScreener:
-    def __init__(self, ticker_data_path_excel):
-        self._shares = pd.read_excel(ticker_data_path_excel)
-        self._shares.dropna(axis=0, inplace=True)
+    def __init__(self, finam_token):
+        self.finam_client = Client(finam_token)
+        self._shares = asyncio.run(self.finam_client.securities.get_data())
         self._column_mapper = ColumnNameMapper()
        
     def _preprocess_stock_name(self, stock_name):
