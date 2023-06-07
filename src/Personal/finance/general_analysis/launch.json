@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
+            "args" : 
+                    [
+                        "-csv_db", "D:\\starovoitov\\Others\\Projects\\python-scripts\\data\\stocks_financemarker_china_semiconductors.csv",
+                        "-out_file", "D:\\starovoitov\\Others\\Projects\\python-scripts\\out\\stocks_financemarker_china_semiconductors_analysis.xlsx",
+                        "-analysis_type", "PE_COMP_ANALYSYS_TYPE|EV_EBIT_COM_ANALYSIS_TYPE|P_FCF_COMP_ANALYSIS_TYPE"
+                    ]
+        }
+    ]
+}
