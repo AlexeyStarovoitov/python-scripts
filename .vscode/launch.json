@@ -8,14 +8,15 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "C:\\Users\\Алексей\\python-scripts\\src\\Personal\\finance\\bond_analysis\\bond_analysis.py",
+            "program": "${workspaceFolder}\\src\\hobby\\colpitz_oscillator.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
             "args" : 
                     [
-                        "-csv_db", "C:\\Users\\Алексей\\Downloads\\Snowball_Holdings.csv",
-                        "-out_file", "C:\\Users\\Алексей\\Downloads\\Snowball_Holdings.xlsx",
+                        "-csv_db", "${workspaceFolder}\\data\\stocks_financemarker_russia_materials.csv",
+                        "-out_file", "${workspaceFolder}\\out\\stocks_financemarker_russia_materials_analysis.xlsx",
+                        "-analysis_type", "PE_COMP_ANALYSYS_TYPE|EV_EBIT_COM_ANALYSIS_TYPE|P_FCF_COMP_ANALYSIS_TYPE"
                     ]
         }
     ]
