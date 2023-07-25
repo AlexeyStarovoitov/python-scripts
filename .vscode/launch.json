@@ -8,7 +8,7 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}\\src\\hobby\\colpitz_oscillator.py",
+            "program": "${workspaceFolder}\\src\\Personal\\finance\\others\\fin_loss_calc.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
