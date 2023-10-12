@@ -8,15 +8,15 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}\\src\\Personal\\finance\\general_stock_analysis\\general_fundamental_analysis.py",
+            "program": "${workspaceFolder}\\src\\Personal\\finance\\others\\fin_loss_calc.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
             "args" : 
                     [
-                        "-csv_db", "${workspaceFolder}\\data\\stocks_financemarker_russia_oil_gas.csv",
-                        "-out_file", "${workspaceFolder}\\out\\stocks_financemarker_russia_oil_gas_analysis.xlsx",
-                        "-analysis_type", "PE_COMP_ANALYSYS_TYPE|EV_EBIT_COM_ANALYSIS_TYPE|NET_ASSET_ANALYSIS_TYPE"
+                        "-csv_db", "${workspaceFolder}\\data\\stocks_financemarker_russia_materials.csv",
+                        "-out_file", "${workspaceFolder}\\out\\stocks_financemarker_russia_materials_analysis.xlsx",
+                        "-analysis_type", "PE_COMP_ANALYSYS_TYPE|EV_EBIT_COM_ANALYSIS_TYPE|P_FCF_COMP_ANALYSIS_TYPE"
                     ]
         }
     ]
