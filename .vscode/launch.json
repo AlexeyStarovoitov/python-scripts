@@ -8,15 +8,18 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}\\src\\Personal\\finance\\others\\fin_loss_calc.py",
+            "program": "${workspaceFolder}\\src\\Personal\\finance\\dcf\\dcf_script.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
             "args" : 
                     [
-                        "-csv_db", "${workspaceFolder}\\data\\stocks_financemarker_russia_materials.csv",
-                        "-out_file", "${workspaceFolder}\\out\\stocks_financemarker_russia_materials_analysis.xlsx",
-                        "-analysis_type", "PE_COMP_ANALYSYS_TYPE|EV_EBIT_COM_ANALYSIS_TYPE|P_FCF_COMP_ANALYSIS_TYPE"
+                        "-csv_file", "${workspaceFolder}\\data\\1810_financemarker.csv",
+                        "-betta", "1.26",
+                        "-rf", "2.5",
+                        "-rm", "9.1",
+                        "-hrznt", "2028",
+                        "-crp", "0.99"
                     ]
         }
     ]

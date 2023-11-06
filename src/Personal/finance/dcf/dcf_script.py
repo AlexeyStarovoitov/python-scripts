@@ -3,64 +3,191 @@ import numpy as np
 import numpy_financial as npf
 import re
 import argparse
-
+from enum import Enum, Flag
+from copy import deepcopy
 #add dataframe columns header parser similar to dcf_portfolio_script.py
+
+class ColumnName(Enum):
+    NAME=1
+    ACCOUNTS_PAYABLE=2
+    ACCOUNTS_RECEIVABLE=3
+    CAPEX=4
+    CASH_AND_EQUIV = 5
+    CURRENT_ASSETS = 6
+    CURRENT_LIABILITIES = 7
+    EBT = 8
+    EBIT = 9
+    EBITDA = 10
+    EARNINGS = 11
+    NET_INTERESTS = 12
+    DEBT = 13
+    NWC = 14
+    NWC_DELTA = 15
+    FCF = 16
+    PERIOD = 17
+    REPORT_TYPE = 18
+    YEAR = 19
+
+class ColumnNameMapperColName(Enum):
+    COLUMN_ENUM=1
+    COLUMN_TEMPLATE=2
+    COLUMN_ADDUCED_NAME=3
+
+
+class PeriodType(Enum):
+    QUARTER = 1
+    SIX_MONTH = 2
+    NINE_MONTH = 3
+    YEAR = 4
+
+class ReportType(Enum):
+    IFRS_TYPE=1
+
+class MapType(Enum):
+    COLUMN_MAP = 1
+    PERIOD_MAP = 2
+    REPORT_MAP = 3
+
+
+
+class ColumnNameMapper:
+   
+    def __init__(self):
+        col_data = [ [ColumnName.NAME, ['^name'], 'name'],
+                     [ColumnName.ACCOUNTS_PAYABLE, ['^accounts_payable'], 'accounts_payable'],
+                     [ColumnName.ACCOUNTS_RECEIVABLE, ['^accounts_receivable'], 'accounts_receivable'],
+                     [ColumnName.CAPEX, ['^capex'], 'capex'],
+                     [ColumnName.CASH_AND_EQUIV, ['^cash_and_equiv'], 'cash_and_equiv'],
+                     [ColumnName.CURRENT_ASSETS, ['^current_assets'], 'current_assets'],
+                     [ColumnName.CURRENT_LIABILITIES, ['^current_liabilities'], 'current_liabilities'],
+                     [ColumnName.EBT, ['^earnings_wo_tax'], 'ebt'],
+                     [ColumnName.EBIT, ['^ebit'], 'ebit'],
+                     [ColumnName.EBITDA, ['^ebitda'], 'ebitda'],
+                     [ColumnName.EARNINGS, ['^earnings'], 'earnings'],
+                     [ColumnName.NET_INTERESTS, ["^interest_net"], "net interests"],
+                     [ColumnName.DEBT, ["^total_debt"], 'total_debt'],
+                     [ColumnName.PERIOD, ["^period"], 'Period'],
+                     [ColumnName.REPORT_TYPE, ["^type"], 'Report Type'],
+                     [ColumnName.NWC, [], 'Net Working Capital'],
+                     [ColumnName.NWC_DELTA, [], 'Net Working Capital Delta'],
+                     [ColumnName.FCF, [], 'FCF']
+        ]
+        
+        self._map_col_data = pd.DataFrame(data = col_data, columns = [
+                                                                    ColumnNameMapperColName.COLUMN_ENUM, 
+                                                                    ColumnNameMapperColName.COLUMN_TEMPLATE, 
+                                                                    ColumnNameMapperColName.COLUMN_ADDUCED_NAME
+                                                                ])
+        period_type_data = [ 
+                        [PeriodType.QUARTER, ['Q']],
+                        [PeriodType.SIX_MONTH, ['6M']],
+                        [PeriodType.NINE_MONTH, ['9M']],
+                        [PeriodType.YEAR, ['Y']]
+                    ]
+        self._map_period_type_data = pd.DataFrame(data = period_type_data, columns = [ColumnNameMapperColName.COLUMN_ENUM, ColumnNameMapperColName.COLUMN_TEMPLATE])
+        
+        report_type_data = [
+                            [ReportType.IFRS_TYPE, ["IFRS"]]
+                           ]
+        self._map_report_type_data = pd.DataFrame(data = report_type_data, columns = [ColumnNameMapperColName.COLUMN_ENUM, ColumnNameMapperColName.COLUMN_TEMPLATE])
+    
+    @staticmethod
+    def _check_template_match(col_name, tem_list):
+        for temp in tem_list:
+            if re.search(temp, col_name, re.IGNORECASE):
+                return True
+        else:
+            return False
+    def map(self, name, map_type):
+        if map_type == MapType.COLUMN_MAP:
+            map_table = self._map_col_data
+        elif map_type == MapType.PERIOD_MAP:
+            map_table = self._map_period_type_data
+        elif map_type == MapType.REPORT_MAP:
+            map_table = self._map_report_type_data
+        else:
+            return None
+         
+        for i in map_table.index:
+            cur_name = map_table.loc[i, :]
+            if ColumnNameMapper._check_template_match(name, cur_name[ColumnNameMapperColName.COLUMN_TEMPLATE]):
+                return cur_name[ColumnNameMapperColName.COLUMN_ENUM]
+        else:
+            return None
+    
+    def map_columns(self, columns):
+        map_columns = [self.map(column, MapType.COLUMN_MAP) for column in columns]
+        return map_columns
+    def map_period_type(self, period_type_column):
+        map_period_type_column = pd.Series(data = np.zeros(1, len(period_type_column)), dtype = PeriodType, index= period_type_column.index)
+        for i in period_type_column.index:
+            map_period_type_column.at[i] = self.map(period_type_column.at[i], MapType.PERIOD_MAP)
+        return map_period_type_column
+    def map_report_type(self, report_type_column):
+        map_report_type_column = pd.Series(data = np.zeros(1, len(report_type_column)), dtype = ReportType, index= report_type_column.index)
+        for i in report_type_column.index:
+            map_report_type_column.at[i] = self.map(report_type_column.at[i], MapType.REPORT_MAP)
+        return map_report_type_column
+       
 
 class DCF_calc:
     @staticmethod
-    def filter_db(column):
-        patterns = ['capex', 'profit', 'revenue', 'earning', 'amort', 'expense']
-        for pattern in patterns:
-            if re.search(pattern, column, re.IGNORECASE):
-                return True
-
-        return False
-    @staticmethod
     def interpolate_last_year(asset_db, filt_asset_db):
 
-        last_year = asset_db['year'].max()
-
-        two_last_years_db = asset_db[(asset_db['year'] == last_year) | (asset_db['year'] == (last_year - 1))]
-        two_last_years_crosstab = pd.crosstab(index=two_last_years_db['year'], columns=two_last_years_db['period'])
+        last_year = asset_db[ColumnName.YEAR].max()
+        two_last_years_db = asset_db[(asset_db[ColumnName.YEAR] == last_year) | (asset_db[ColumnName.YEAR] == (last_year - 1))]
+        two_last_years_crosstab = pd.crosstab(index=two_last_years_db[ColumnName.YEAR], columns=two_last_years_db[ColumnName.PERIOD])
 
         periods = ['Q', '6M', '9M', 'Y']
         av_periods = [per in two_last_years_db['period'].array for per in periods]
         av_periods = dict(zip(periods,av_periods))
-        aggr_periods = []
+        aggr_periods_indexes = []
 
-        if av_periods['9M'] and av_periods['Q'] and two_last_years_crosstab.loc[last_year, '9M'] == 1:
+        if two_last_years_crosstab.loc[last_year-1, PeriodType.QUARTER] != 0 and two_last_years_crosstab.loc[last_year, PeriodType.NINE_MONTH] == 1:
+            last_year_nine_month_row = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == last_year) & (two_last_years_db[ColumnName.PERIOD] == PeriodType.NINE_MONTH)]
+            last_year_nine_month_row_index = last_year_nine_month_row.index.values.astype(int)[-1]
+            year_before_last_year_last_quarter = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == (last_year - 1)) & \
+                                (two_last_years_db[ColumnName.PERIOD] == PeriodType.QUARTER)]
+            year_before_last_year_last_quarter_index = year_before_last_year_last_quarter.index.values.astype(int)[-1]
+            
+            aggr_periods_indexes.append(last_year_nine_month_row_index, year_before_last_year_last_quarter_index)
+            
+        elif two_last_years_crosstab.loc[last_year-1, PeriodType.SIX_MONTH] != 0 and two_last_years_crosstab.loc[last_year, PeriodType.SIX_MONTH] == 1:
+            last_year_six_month_row = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == last_year) & (two_last_years_db[ColumnName.PERIOD] == PeriodType.SIX_MONTH)]
+            last_year_six_month_row_index = last_year_six_month_row.index.values.astype(int)[-1]
+            
+            year_before_last_year_six_month_row = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == (last_year-1)) & (two_last_years_db[ColumnName.PERIOD] == PeriodType.SIX_MONTH)]
+            year_before_last_year_six_month_row_index = year_before_last_year_six_month_row.index.values.astype(int)[-1]
+            
+            aggr_periods_indexes.append(year_before_last_year_six_month_row_index, last_year_six_month_row_index)
 
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == last_year) & \
-                                (two_last_years_db['period'] == '9M')].index.values.astype(int)[-1])
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == (last_year - 1)) & \
-                                (two_last_years_db['period'] == 'Q')].index.values.astype(int)[-1])
+        elif two_last_years_crosstab.loc[last_year-1, PeriodType.SIX_MONTH] and two_last_years_crosstab.loc[last_year-1, PeriodType.QUARTER] != 0 and two_last_years_crosstab.loc[last_year, PeriodType.QUARTER] == 1:
+            
+            year_before_last_year_last_quarter = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == (last_year - 1)) & \
+                                (two_last_years_db[ColumnName.PERIOD] == PeriodType.QUARTER)]
+            year_before_last_year_last_quarter_index = year_before_last_year_last_quarter.index.values.astype(int)[-1]
+            
+            year_before_last_year_six_month_row = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == (last_year-1)) & (two_last_years_db[ColumnName.PERIOD] == PeriodType.SIX_MONTH)]
+            year_before_last_year_six_month_row_index = year_before_last_year_six_month_row.index.values.astype(int)[-1]
 
-        elif av_periods['6M'] and two_last_years_crosstab.loc[last_year, '6M'] == 1:
+            last_year_last_quarter = two_last_years_db[(two_last_years_db[ColumnName.YEAR] == (last_year)) & \
+                                (two_last_years_db[ColumnName.PERIOD] == PeriodType.QUARTER)]
+            last_year_last_quarter_index = last_year_last_quarter.index.values.astype(int)[-1]
+            
+            aggr_periods_indexes.append(last_year_last_quarter_index, year_before_last_year_last_quarter_index, year_before_last_year_six_month_row_index)
 
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == last_year) & (
-                    two_last_years_db['period'] == '6M')].index.values.astype(int)[-1])
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == (last_year - 1)) & (
-                    two_last_years_db['period'] == '6M')].index.values.astype(int)[-1])
+        aggr_column_names = [ColumnName.CAPEX, ColumnName.EARNINGS, 
+                             ColumnName.EBIT, ColumnName.EBITDA, ColumnName.EBT, 
+                             ColumnName.NET_INTERESTS, ColumnName.ACCOUNTS_PAYABLE, ColumnName.ACCOUNTS_RECEIVABLE]
+        mod_columns = list(filter(lambda x: x in aggr_column_names, two_last_years_db.columns))
+        
 
-        elif av_periods['Q'] and av_periods['6M'] and two_last_years_crosstab.loc[last_year, 'Q'] == 1:
-
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == last_year) & (
-                    two_last_years_db['period'] == 'Q')].index.values.astype(int)[-1])
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == (last_year - 1)) & (
-                    two_last_years_db['period'] == 'Q')].index.values.astype(int)[-1])
-            aggr_periods.append(two_last_years_db[(two_last_years_db['year'] == (last_year - 1)) & (
-                    two_last_years_db['period'] == '6M')].index.values.astype(int)[-1])
-
-        mod_columns = list(filter(DCF_calc.filter_db, two_last_years_db.columns))
-        last_year_result = two_last_years_db.loc[aggr_periods[0], :].copy()
-
-        for i in range(1, len(aggr_periods)):
+        last_year_result = two_last_years_db.loc[aggr_periods_indexes[0], :].copy()
+        for i in range(1, len(aggr_periods_indexes)):
             for column in mod_columns:
-                last_year_result.loc[column] += two_last_years_db.loc[aggr_periods[i], column]
+                last_year_result.loc[column] += two_last_years_db.loc[aggr_periods_indexes[i], column]
 
-        last_year_result.loc['period'] = 'Y'
-        last_year_result.loc['month'] = 12
-
+        last_year_result.loc[ColumnName.PERIOD] = PeriodType.YEAR
         dict_data = dict(zip(last_year_result.index, last_year_result.values))
         last_year_result = pd.DataFrame(data=dict_data, index=[max(filt_asset_db.index) + 1])
 
@@ -99,15 +226,28 @@ class DCF_calc:
         self.invst_hrznt = invst_hrznt
 
         asset_db = pd.read_csv(csv_file)
-        asset_db = asset_db[asset_db['type'] == type]
-        filt_asset_db = asset_db[asset_db['period']=='Y']
+
+        mapper = ColumnNameMapper()
+        columns = deepcopy(asset_db.columns)
+        for column in columns:
+            mapped_column = mapper.map(column, MapType.COLUMN_MAP)
+            if mapped_column == None:
+                asset_db.drop(column, axis = '1', implace = True)
+            else:
+                asset_db.rename(columns = {column:mapped_column}, inplace=True)
+
+        asset_db.loc[:, ColumnName.REPORT_TYPE] = mapper.map_report_type(asset_db[ColumnName.REPORT_TYPE])
+        asset_db[:, ColumnName.PERIOD] = mapper.map_period_type(asset_db[ColumnName.PERIOD])
+        asset_db = asset_db[asset_db[ColumnName.REPORT_TYPE] == type]
+        filt_asset_db = asset_db[asset_db[ColumnName.PERIOD]==PeriodType.YEAR]
         
-        last_year = asset_db['year'].max()
-        filt_last_year = filt_asset_db['year'].max()
+        last_year = asset_db[ColumnName.YEAR].max()
+        filt_last_year = filt_asset_db[ColumnName.YEAR].max()
         if last_year != filt_last_year:
             asset_db = DCF_calc.interpolate_last_year(asset_db, filt_asset_db)
         else:
             asset_db = filt_asset_db
+        
         self.asset_db = asset_db
         self.stock_data_dict = DCF_calc.calculate_stock_data(self.asset_db)
 
@@ -179,8 +319,8 @@ class DCF_calc:
             elif i == 'delta_nwc':
                 for j in range(int(ext_period[0]), int(ext_period[1]) + 1):
                     fcf_df.loc[i, str(j)] = fcf_df.loc['nwc', str(j)] - fcf_df.loc['nwc', str(j - 1)]
-            elif i == 'fcf':
-                fcf_df.loc[i, ext_period[0]:ext_period[1]] = fcf_df.loc['earnings',ext_period[0]:ext_period[1]] + fcf_df.loc['depr_depl_amort',ext_period[0]:ext_period[1]] - \
+           
+        fcf_df.loc['fcf', ext_period[0]:ext_period[1]] = fcf_df.loc['earnings',ext_period[0]:ext_period[1]] + fcf_df.loc['depr_depl_amort',ext_period[0]:ext_period[1]] - \
                                                              fcf_df.loc['capex',ext_period[0]:ext_period[1]] - fcf_df.loc['delta_nwc',ext_period[0]:ext_period[1]]
 
         npv = npf.npv(wacc, fcf_df.loc['fcf', ext_period[0]:ext_period[1]].values)
@@ -250,7 +390,7 @@ if __name__=='__main__':
 
     args = arg_parser.parse_args()
     print(args)
-    dcf_clc = DCF_calc(csv_file=args.csv_file, betta = args.betta, rf = args.rf, rm = args.rm, country_risk = args.crp, invst_hrznt=args.hrznt)
+    dcf_clc = DCF_calc(csv_file=args.csv_file, betta = args.betta, rf = args.rf, rm = args.rm, country_risk = args.crp, invst_hrznt=args.hrznt, type = "IFRS")
     result_stock_price = dcf_clc.calculate_fair_share_price()
 
     print('Num  Current price   Evaluated price Margin,%')
