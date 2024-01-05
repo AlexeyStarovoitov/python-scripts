@@ -1,0 +1,27 @@
+Reductor calculation results:
+Subreductor 0:
+Given:
+{<GivenParams.ni: 1>: 100, <GivenParams.no: 2>: 25, <GivenParams.k: 3>: 2}Results:
+Gears:
+   GearParams.d  GearParams.z  GearParams.m  GearParams.dw  GearParams.df  GearParams.da  GearParams.bw  GearParams.betta  GearParams.alpha  GearParams.x  GearParams.b1  GearParams.b2
+0          65.0          20.0           1.0           65.0           62.5           67.0            8.0               0.0              20.0           0.0            8.0           13.0
+1         250.0          80.0           1.0          250.0          247.5          252.0            8.0               0.0              20.0           0.0            8.0           13.0
+2         250.0          80.0           1.0          250.0          247.5          252.0            8.0               0.0              20.0           0.0            8.0           13.0
+Transitions:
+   TransitionParams.u  TransitionParams.aw  TransitionParams.ece
+0                 4.0                157.5                  0.95
+1                 1.0                250.0                  0.95
+Efficiency: 90.25%
+
+Subreductor 1:
+Given:
+{<GivenParams.ni: 1>: 100, <GivenParams.no: 2>: 25, <GivenParams.k: 3>: 1}Results:
+Gears:
+   GearParams.d  GearParams.z  GearParams.m  GearParams.dw  GearParams.df  GearParams.da  GearParams.bw  GearParams.betta  GearParams.alpha  GearParams.x  GearParams.b1  GearParams.b2
+0          65.0          20.0           1.0           65.0           62.5           67.0            8.0               0.0              20.0           0.0            8.0           13.0
+1         250.0          80.0           1.0          250.0          247.5          252.0            8.0               0.0              20.0           0.0            8.0           13.0
+Transitions:
+   TransitionParams.u  TransitionParams.aw  TransitionParams.ece
+0                 4.0                157.5                  0.95
+Efficiency: 95.0%
+
